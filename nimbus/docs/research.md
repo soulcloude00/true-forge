@@ -23,7 +23,7 @@ These sources show category patterns, not Nimbus features or independent endorse
 
 ## TrueForge hackathon iteration — 2026-09-26
 
-Round 1 established a real TrueForge run baseline and uncovered an unresolved identity mismatch: Nimbus saw zero EC2 instances while the prior AWS Core inspection found one instance in `us-east-1`. See [`benchmarks/rounds/2026-09-26-round-1.md`](../benchmarks/rounds/2026-09-26-round-1.md). Do not promote account-wide conclusions until Nimbus uses the same verified identity and scope.
+Round 1 established a real TrueForge run baseline and uncovered an unresolved identity mismatch: Nimbus saw zero EC2 instances while the prior AWS Core inspection found one instance in `us-east-1`. The Round 2 live run reduced observed TrueForge trace calls from 11 to 3 and Nimbus AWS reads from 3 to 1. AWS Core and local Nimbus are authenticated to different AWS accounts, so Nimbus must not make account-complete claims until its identity is aligned. See the [Round 1 baseline](../benchmarks/rounds/2026-09-26-round-1.md) and [Round 2 live evaluation](../benchmarks/rounds/2026-09-26-round-2-live.md).
 
 The first improvement round reuses the Apache-2.0 AWS Agent Toolkit for AWS billing skill by reference and adds Nimbus's own reusable TrueForge Git skill, structured MCP output contracts, a single-call evidence bundle, and deterministic service/day aggregation. The upstream implementation details, compatibility limits, auth boundary, and citations are documented in [`research/aws-agent-toolkit-reuse-and-trueforge-fit-2026-09-26.md`](../../research/aws-agent-toolkit-reuse-and-trueforge-fit-2026-09-26.md). The AWS toolkit plugin is source-available; its AWS MCP Server target is managed, not itself the open-source implementation.
 

@@ -25,7 +25,8 @@ try{
  if(!agent?.id)throw new Error(`Saved agent ${spec.name} was not found.`);
  const currentManifest=agent.manifest;
  await ensureSkills();
- await client.agents.update(agent.id,{manifest:{...currentManifest,instructions:spec.manifest.instructions,skills:spec.manifest.skills}});
+ const mcpServers=spec.manifest.mcp_servers.map(server=>({name:server.name,enableTools:server.enable_tools,requireApprovalForTools:server.require_approval_for_tools,preload:server.preload}));
+ await client.agents.update(agent.id,{manifest:{...currentManifest,instructions:spec.manifest.instructions,skills:spec.manifest.skills,mcpServers}});
  const saved=await client.agents.get(agent.id);
  const manifest=saved.data.manifest;
  const server=manifest.mcpServers?.find(item=>item.name==='nimbus-aws-review');

@@ -35,6 +35,12 @@ test('daily cost analysis excludes incomplete end date and computes deterministi
  assert.equal(result.topServiceChanges[0]?.absoluteChange,1);
 });
 
+test('daily cost analysis withholds percentage changes for a non-positive baseline',()=>{
+ const result=analyzeDailyCosts([{date:'2026-09-01',service:'Credits',amount:'-2',unit:'USD'},{date:'2026-09-02',service:'Credits',amount:'-3',unit:'USD'}],'2026-09-03');
+ assert.equal(result.endpointDelta?.absoluteChange,-1);
+ assert.equal(result.endpointDelta?.percentChange,null);
+});
+
 test('paginated collector follows continuation tokens and returns accumulated items',async()=>{
  const requests:Array<string|undefined>=[];
  const result=await collectPages(async token=>{requests.push(token);return token?{items:[3,4]}:{items:[1,2],token:'next'};},3);

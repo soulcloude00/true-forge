@@ -6,7 +6,7 @@ export function analyzeDailyCosts(rows:DailyCostRow[],endDateExclusive:string){
  const dailyTotals=[...totalsByDate].sort(([left],[right])=>left.localeCompare(right)).map(([date,amount])=>({date,amount}));
  const completeDates=dailyTotals.filter(({date})=>date<endDateExclusive);
  const first=completeDates[0],last=completeDates.at(-1);
- const endpointDelta=first&&last&&first.amount!==0?{firstDate:first.date,lastDate:last.date,firstAmount:first.amount,lastAmount:last.amount,absoluteChange:last.amount-first.amount,percentChange:((last.amount-first.amount)/Math.abs(first.amount))*100}:null;
+ const endpointDelta=first&&last?{firstDate:first.date,lastDate:last.date,firstAmount:first.amount,lastAmount:last.amount,absoluteChange:last.amount-first.amount,percentChange:first.amount>0?((last.amount-first.amount)/first.amount)*100:null}:null;
  const byService=new Map<string,{first:number;last:number}>();
  for(const row of rows){
   const amount=Number(row.amount);if(!Number.isFinite(amount))continue;

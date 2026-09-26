@@ -7,5 +7,6 @@ The benchmark calls Nimbus's production `analyzeDailyCosts` function directly us
 | 1 | 0.0080 | 0.0343 | 0.4598 |
 | 2 | 0.0059 | 0.0127 | 0.1999 |
 | 3 | 0.0058 | 0.0064 | 0.0661 |
+| 4 (after non-positive-baseline guard) | 0.0061 | 0.0424 | 1.4796 |
 
-All three runs verified 14 daily totals and 3 service-change summaries. Median of run medians: **0.0059 ms**. The spread, especially in run 1's p95/max, shows local runtime noise. This establishes an initial local baseline only; there is no pre-change measurement of this implementation to support a speedup claim. The real Round 2 TrueForge session is still needed to measure tool-call count and end-to-end time.
+All runs verified 14 daily totals and 3 service-change summaries. Median of run medians: **0.0060 ms**. The fourth run includes the final guard that withholds percentage changes when the first total is non-positive. The spread, especially in runs 1 and 4 p95/max, shows local runtime noise. This establishes an initial local baseline only; there is no pre-change measurement of this implementation to support a speedup claim. The live Round 2 tool-call result is recorded separately; repeated live sessions are still needed for stable end-to-end timing.
