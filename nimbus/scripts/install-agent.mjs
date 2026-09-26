@@ -8,7 +8,7 @@ if(!model||!model.includes('/')){console.error('Usage: npm run agent:install -- 
 const spec=JSON.parse(await readFile(new URL('../trueforge-agent-spec.json',import.meta.url)));
 spec.manifest.model.name=model;
 const requiredApprovalTool='mark_volume_for_review';
-const requiredTools=['inspect_aws_inventory','read_monthly_service_cost',requiredApprovalTool];
+const requiredTools=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost',requiredApprovalTool];
 const desiredServer=spec.manifest.mcp_servers.find(s=>s.name==='nimbus-aws-review');
 if(!desiredServer||requiredTools.some(name=>!desiredServer.enable_tools.includes(name))||!desiredServer.require_approval_for_tools.includes(requiredApprovalTool)){
  console.error('Refusing to install: the agent spec must enable all three Nimbus tools and require approval for mark_volume_for_review.');

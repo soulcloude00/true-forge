@@ -2,7 +2,7 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {createMcpExpressApp} from '@modelcontextprotocol/sdk/server/express.js';
 import {z} from 'zod';
-import {getInventory,getBilling,markVolumeForReview} from './aws-read.ts';
+import {getInventory,getBilling,getDailyBilling,markVolumeForReview} from './aws-read.ts';
 
 export function makeServer(){
  const server=new McpServer({name:'nimbus-aws-review',version:'0.1.0'});
@@ -13,6 +13,10 @@ export function makeServer(){
  server.registerTool('read_monthly_service_cost',{description:'Read service-level AWS Cost Explorer UnblendedCost for a month. Not a per-resource saving estimate.',inputSchema:{month:z.string().describe('YYYY-MM')},annotations:{readOnlyHint:true}},async({month})=>{
   try{return {content:[{type:'text' as const,text:JSON.stringify(await getBilling(month))}]};}
   catch(e){return {isError:true,content:[{type:'text' as const,text:`AWS billing lookup failed: ${e instanceof Error?e.message:'unknown error'}`}]};}
+ });
+ server.registerTool('read_recent_daily_service_cost',{description:'Read the last 7–31 UTC days of daily AWS Cost Explorer totals grouped by service. Data can be delayed and is not resource-level attribution.',inputSchema:{days:z.number().int().min(7).max(31).optional().describe('UTC day range; defaults to 14')},annotations:{readOnlyHint:true}},async({days})=>{
+  try{return {content:[{type:'text' as const,text:JSON.stringify(await getDailyBilling(days??14))}]};}
+  catch(e){return {isError:true,content:[{type:'text' as const,text:`AWS daily cost lookup failed: ${e instanceof Error?e.message:'unknown error'}`}]};}
  });
  server.registerTool('mark_volume_for_review',{
   description:'After TrueForge human approval, add the fixed reversible nimbus:review-state=candidate-for-human-review tag to one currently available, unattached EBS volume in the specified account and region. This is a review marker only; it does not authorize or perform deletion.',
@@ -28,6 +32,7 @@ export function listTools(){
  return [
   {name:'inspect_aws_inventory',annotations:{readOnlyHint:true}},
   {name:'read_monthly_service_cost',annotations:{readOnlyHint:true}},
+  {name:'read_recent_daily_service_cost',annotations:{readOnlyHint:true}},
   {name:'mark_volume_for_review',annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:true}}
  ] as const;
 }

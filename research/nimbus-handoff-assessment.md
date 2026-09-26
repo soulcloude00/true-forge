@@ -86,19 +86,24 @@ This follow-up reflects the separate writable repository `/Users/soulcloude/Docu
 ### Implementation present in the repository
 
 - Nimbus is now part of the root `true-forge` Git repository alongside the research. The root remote is `https://github.com/soulcloude00/true-forge.git`.
-- AWS MCP now exposes three tools: paginated live inventory, paginated service-level Cost Explorer totals, and the bounded `mark_volume_for_review` tag action. The write verifies caller account, region, exact volume ID and currently available/unattached state; it only adds `nimbus:review-state=candidate-for-human-review`, refuses a different existing marker, and has no deletion/stop/snapshot capability.
-- The checked-in agent spec selects approval for the exact tag tool. The TrueForge browser builder was inspected: it showed the local `nimbus-aws-review` connector with three tools, and the approval control enabled for the tag action. The draft instructions/runtime settings were visible. This is configuration in the unsaved builder, not proof of a saved or executed agent.
+- AWS MCP now exposes three read tools (paginated inventory, monthly service totals, recent daily service totals) and the bounded `mark_volume_for_review` tag action. The write verifies caller account, region, exact volume ID and currently available/unattached state; it only adds `nimbus:review-state=candidate-for-human-review`, refuses a different marker, and has no deletion/stop/snapshot capability.
+- The checked-in agent spec enables all four tools and selects approval for the exact tag tool. Earlier TrueForge builder inspection showed the connector and approval control, but the agent remains unsaved because there is no configured model provider.
 - The Nimbus panel now uses the official TrueForge TypeScript SDK to create a session, stream harness events, and present the approval decision; Live Evidence remains a direct read-only view.
-- Setup, demo, safety, and top-level research docs now distinguish current on-demand evidence gathering from the proposed future scheduled monitoring. Nimbus currently has no scheduler, retained baseline, anomaly detection, or alert delivery.
+- An opt-in TrueForge daily schedule is implemented in `scripts/manage-monitor.mjs`, with `npm run monitor:enable` and `npm run monitor:pause`. It runs at 09:00 Asia/Kolkata, reads configured-region inventory and trailing 14-day daily service costs, and creates a TrueForge session; scheduled turns are read-only. It does not sweep every region or send external alerts, and it is not active in this instance.
+- Setup, demo, safety, and research docs state what is live and what remains unconfigured, including the schedule's limited scope and costs.
 
 ### Current verification and blockers
 
 - `npm run build` completed successfully (TypeScript check and Vite production build). Vite reported a chunk-size warning for the main JavaScript bundle (>500 kB); build succeeded.
-- `npm run mcp:smoke` completed against the running MCP server and listed the two read-only tools plus the non-read-only fixed tag tool.
+- `npm run mcp:smoke` completed against the restarted MCP server and listed three read-only tools plus the non-read-only fixed tag tool; it explicitly states that it cannot verify the TrueForge approval gate.
 - The local MCP process was restarted from current source at `127.0.0.1:8792`; TrueForge v0.2.1 is live at `localhost:8790`, and its live OpenAPI JSON reports version `0.2.1` with agent/session endpoints.
-- The TrueForge browser Settings → Models page lists provider/model options, but no provider is configured. The agent draft cannot be saved or run until an API provider is configured in that local UI. Do not paste provider keys into chat or commit them.
-- Sandbox is switched on in the draft, but no provider is configured and no real sandbox execution event has been observed. Therefore neither sandbox isolation nor a successful end-to-end agent run is verified.
+- The TrueForge browser Settings → Models page lists provider/model options, but no provider is configured. API checks also show no saved agent and no sandbox provider; the catalog offers Daytona. Do not paste provider keys into chat or commit them.
+- No real sandbox execution event has been observed. Therefore neither sandbox isolation nor a successful end-to-end agent run is verified.
 - No live AWS call or AWS mutation was performed in this verification. No `npm test` suite was run.
+
+### Daily-monitor implementation follow-up (26 September 2026)
+
+The new daily-cost reader accepts 7–31 days, returns complete UTC dates through the prior day, paginates up to the shared cap, and warns that Cost Explorer data may lag. `manage-monitor.mjs` verifies the saved agent's four tools, exact approval selector, and MCP connector before enabling or pausing its schedule. Creating an active schedule remains an explicit user action because each run creates a model session and makes AWS reads. No schedule was activated in this work.
 
 ### Remaining steps for a true end-to-end demonstration
 

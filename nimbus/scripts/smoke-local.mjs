@@ -6,5 +6,5 @@ await client.connect(new StreamableHTTPClientTransport(new URL(url)));
 const {tools}=await client.listTools();
 console.log(tools.map(t=>`${t.name}: readOnly=${!!t.annotations?.readOnlyHint}`).join('\n'));
 console.log('Approval gate: declared in the checked-in agent spec; this MCP smoke check cannot verify or enforce the saved-agent setting.');
-if(tools.length!==3||!tools.find(t=>t.name==='mark_volume_for_review')||tools.filter(t=>t.annotations?.readOnlyHint!==true).length!==1)process.exitCode=1;
+if(tools.length!==4||!tools.find(t=>t.name==='mark_volume_for_review')||tools.filter(t=>t.annotations?.readOnlyHint!==true).length!==1)process.exitCode=1;
 await client.close();

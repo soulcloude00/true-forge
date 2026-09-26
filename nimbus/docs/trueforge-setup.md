@@ -16,7 +16,7 @@ npm ci
 npm run mcp
 ```
 
-The Streamable HTTP endpoint is `http://127.0.0.1:8792/mcp`. It exposes three tools: `inspect_aws_inventory`, `read_monthly_service_cost`, and `mark_volume_for_review`. Inventory and Cost Explorer calls paginate up to 20 pages and report when that cap truncates coverage. Cost Explorer output is service-level billing data, not resource-level cost attribution. AWS reads require STS identity, EC2/ELB describe, and Cost Explorer read permissions. The optional tag call additionally requires EC2 `CreateTags`.
+The Streamable HTTP endpoint is `http://127.0.0.1:8792/mcp`. It exposes four tools: `inspect_aws_inventory`, `read_monthly_service_cost`, `read_recent_daily_service_cost`, and `mark_volume_for_review`. Inventory and Cost Explorer calls paginate up to 20 pages and report when that cap truncates coverage. Cost Explorer output is service-level billing data, not resource-level cost attribution. Daily data can lag and the daily tool reports a UTC range ending before the current day. AWS reads require STS identity, EC2/ELB describe, and Cost Explorer read permissions. The optional tag call additionally requires EC2 `CreateTags`.
 
 Start TrueForge in a second terminal, keeping its local no-login server on loopback:
 
@@ -24,7 +24,7 @@ Start TrueForge in a second terminal, keeping its local no-login server on loopb
 OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1"]' npx @truefoundry/trueforge@0.2.1
 ```
 
-The outbound URL guard stays enabled; the local MCP address is the only added host. Open `http://localhost:8790`, configure a model provider under **Settings → Models**, and enter its key only in TrueForge's local UI. Then add `http://127.0.0.1:8792/mcp` under **Settings → Connectors** as `nimbus-aws-review`. Verify all three tools are present.
+The outbound URL guard stays enabled; the local MCP address is the only added host. Open `http://localhost:8790`, configure a model provider under **Settings → Models**, and enter its key only in TrueForge's local UI. Then add `http://127.0.0.1:8792/mcp` under **Settings → Connectors** as `nimbus-aws-review`. Verify all four tools are present.
 
 ## Configure and run the agent
 
@@ -35,7 +35,17 @@ npm run agent:install -- provider/model-name
 npm run verify:setup
 ```
 
-The agent enables the two evidence tools and `mark_volume_for_review`. In TrueForge's agent configuration, `Require approval` must be on for `mark_volume_for_review`; leave it off for the two read tools. The installer reads the created agent back through the API and fails verification unless all three tools and the approval selector are present. Confirm the tool list and approval setting in the saved agent before a live turn. The MCP smoke command only checks the MCP tool list; MCP annotations do not enforce or prove TrueForge's agent approval gate.
+The agent enables the three evidence tools and `mark_volume_for_review`. In TrueForge's agent configuration, `Require approval` must be on for `mark_volume_for_review`; leave it off for the read tools. The installer reads the created agent back through the API and fails verification unless all four tools and the approval selector are present. Confirm the tool list and approval setting in the saved agent before a live turn. The MCP smoke command only checks the MCP tool list; MCP annotations do not enforce or prove TrueForge's agent approval gate.
+
+## Opt into daily monitoring
+
+After `nimbus-cost-agent` and the connector are saved and verified, explicitly enable the daily TrueForge schedule:
+
+```sh
+npm run monitor:enable
+```
+
+This creates or activates `nimbus-daily-cost-review` at 09:00 in `Asia/Kolkata`. Each run calls read tools for the configured AWS region and recent service-level daily costs, creating a persistent TrueForge session. It can incur model/API usage charges and AWS read calls. Scheduled runs are read-only and are instructed never to call the review-tag write. Pause the schedule with `npm run monitor:pause`. This first iteration does not monitor every AWS region, store an independent cost baseline, or send external alerts; inspect the TrueForge sessions for each run.
 
 In a genuine run, request a live evidence report and sandbox validation first. Only propose the fixed `nimbus:review-state=candidate-for-human-review` tag when specifically asked. The tool independently verifies the expected account, region, exact volume ID, and current available/unattached state; it refuses to overwrite a different tag value. TrueForge must show the exact tool call and wait for a person. Rejecting must stop the action. The tag marks a review candidate only; it does not authorize cleanup.
 
@@ -43,7 +53,7 @@ Run `npm run dev` for the Nimbus interface on the same laptop. The Agent view co
 
 ## Known limits
 
-- Current local browser setup has the connector and three tools configured, and the approval checkbox is on for the tag tool. A model provider is not configured yet, so the agent has not been saved or run.
+- Current local browser setup has the connector configured. TrueForge API checks show zero model providers, no saved agents, and no sandbox provider. The earlier unsaved builder draft showed the approval checkbox on for the tag tool. No schedule is active.
 - Sandbox is enabled in the agent draft, but actual isolated execution remains unverified until a provider is configured and a live sandbox event is observed.
 - Never expose local TrueForge without authentication to the public internet. A publicly hosted Nimbus preview cannot access a user's loopback TrueForge or MCP services.
 - Sources: [TrueForge quickstart](https://trueforge.dev/quickstart), [SDK quickstart](https://trueforge.dev/api/quickstart), [SDK session and approval flow](https://trueforge.dev/api/use-agent), [sandbox requirements](https://trueforge.dev/sandbox), and [TrueForge API docs](http://localhost:8790/api/v1/docs) when the local server is running.

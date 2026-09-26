@@ -10,7 +10,7 @@ This repository contains a pre-event Nimbus prototype copied from the supplied h
 
 - The React app's original scanner uses synthetic or locally pasted JSON and labels those results as estimates, not live account findings.
 - A separate local MCP server reads AWS STS, EC2, ELB, and Cost Explorer data. Inventory pagination is capped at 20 pages per service and reports truncation. Cost Explorer is also paginated with an explicit cap.
-- TrueForge's saved-agent spec enables the two read tools and the bounded `mark_volume_for_review` tool. The latter checks the current AWS account, region, volume ID, and unattached/available state, then adds only `nimbus:review-state=candidate-for-human-review`. TrueForge approval is required for that exact tool. A pre-existing different value is not overwritten. The agent has no delete, stop, or snapshot tool.
+- TrueForge's saved-agent spec enables three read tools and the bounded `mark_volume_for_review` tool. An opt-in TrueForge schedule can run a read-only review daily at 09:00 Asia/Kolkata; it is not active by default. The tag tool checks the current AWS account, region, volume ID, and unattached/available state, then adds only `nimbus:review-state=candidate-for-human-review`. TrueForge approval is required for that exact tool. A pre-existing different value is not overwritten. The agent has no delete, stop, or snapshot tool.
 - The Nimbus Agent panel starts a session with the saved TrueForge agent through the TypeScript SDK, renders actual streamed harness events, and lets a person allow or reject the pending approval. The Live Evidence panel calls the read-only MCP tools for direct review.
 
 The remaining local setup requirement is a model provider in TrueForge. The browser session currently has no provider configured, so the saved agent cannot be created or run until a provider and model are selected in TrueForge Settings. Add the provider key directly in TrueForge's local UI; never put it in this repository or the Nimbus app.
@@ -34,12 +34,14 @@ cd nimbus
 NETWORK_POLICY_ENABLED=true OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1"]' npx @truefoundry/trueforge@0.2.1
 ```
 
-Open <http://localhost:8790>. Under **Settings → Models**, configure a provider and select a model. Under **Settings → Connectors**, connect the local Nimbus server at `http://127.0.0.1:8792/mcp` as `nimbus-aws-review`. When building the agent, enable `inspect_aws_inventory` and `read_monthly_service_cost`; enable `mark_volume_for_review` only with **Require approval** on. The checked-in manifest and installer preserve the same settings:
+Open <http://localhost:8790>. Under **Settings → Models**, configure a provider and select a model. Under **Settings → Connectors**, connect the local Nimbus server at `http://127.0.0.1:8792/mcp` as `nimbus-aws-review`. When building the agent, enable the three read tools; enable `mark_volume_for_review` only with **Require approval** on. The checked-in manifest and installer preserve and read back those settings:
 
 ```sh
 npm run agent:install -- openai/gpt-5-5
 npm run verify:setup
 ```
+
+After verifying the agent and connector, `npm run monitor:enable` opts into a daily scheduled TrueForge run at 09:00 Asia/Kolkata. Each run reads inventory from the configured AWS region plus the last 14 complete UTC days of account-level service costs and creates a TrueForge session/report. It does not send external alerts or mutate AWS; pause it with `npm run monitor:pause`. Runs make model calls and AWS reads and may incur provider charges.
 
 Use the actual configured provider/model name in the installer command. AWS credentials stay in the local AWS credential chain. The read tools need STS identity, EC2 describe, ELB describe, and Cost Explorer read permissions. The optional review-tag tool additionally needs `ec2:CreateTags`. Use a dedicated demo account with no production resources.
 

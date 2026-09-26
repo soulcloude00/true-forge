@@ -5,7 +5,7 @@ Target: five minutes. Run this only after a model provider, connector, agent, an
 ## Before the demo
 
 1. Start `npm run mcp` and local TrueForge with the outbound guard on and loopback MCP host allowlisted.
-2. Configure the model privately in TrueForge Settings. Verify the `nimbus-aws-review` connector exposes all three tools.
+2. Configure the model privately in TrueForge Settings. Verify the `nimbus-aws-review` connector exposes all four tools.
 3. In the saved agent, enable `Require approval` specifically for `mark_volume_for_review`; verify both evidence tools are un-gated.
 4. Configure a supported TrueForge sandbox provider and run a harmless sandbox check before presenting sandbox execution as available.
 5. Confirm AWS account/region and pagination coverage. Use only a dedicated demo account with a known available, unattached volume if demonstrating the optional tag. Keep the synthetic UI report clearly labeled.
@@ -43,3 +43,5 @@ Show the path: operator → TrueForge agent/session → AWS review MCP → AWS A
 - A TrueForge sandbox execution event from a configured provider.
 - TrueForge's approval pause showing the exact `mark_volume_for_review` call and arguments; show the resulting tag only if explicitly approved in the demo account.
 - A clean-clone README path and a clear statement that synthetic data is not live account evidence.
+
+The optional daily schedule is product follow-through, not a substitute for the five-minute live demo. If shown, identify its 09:00 IST cadence, configured-region scope, Cost Explorer freshness limits, persistent TrueForge run sessions, and the absence of external alert delivery.

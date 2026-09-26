@@ -13,6 +13,8 @@
     "mcp": "node --experimental-strip-types mcp/server.ts",
     "verify:setup": "node scripts/verify-setup.mjs",
     "agent:install": "node scripts/install-agent.mjs",
+    "monitor:enable": "node scripts/manage-monitor.mjs enable",
+    "monitor:pause": "node scripts/manage-monitor.mjs pause",
     "mcp:smoke": "node scripts/smoke-local.mjs"
   },
   "engines": {

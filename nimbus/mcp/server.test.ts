@@ -13,9 +13,10 @@ test('MCP server exposes read-only evidence tools and one bounded review-write t
  await client.connect(clientTransport);
  const {tools}=await client.listTools();
  const names=tools.map(x=>x.name).sort();
- assert.deepEqual(names,['inspect_aws_inventory','mark_volume_for_review','read_monthly_service_cost']);
+ assert.deepEqual(names,['inspect_aws_inventory','mark_volume_for_review','read_monthly_service_cost','read_recent_daily_service_cost']);
  assert.equal(tools.find(x=>x.name==='inspect_aws_inventory')?.annotations?.readOnlyHint,true);
  assert.equal(tools.find(x=>x.name==='read_monthly_service_cost')?.annotations?.readOnlyHint,true);
+ assert.equal(tools.find(x=>x.name==='read_recent_daily_service_cost')?.annotations?.readOnlyHint,true);
  const write=tools.find(x=>x.name==='mark_volume_for_review');
  assert.equal(write?.annotations?.readOnlyHint,false);
  assert.equal(write?.annotations?.destructiveHint,false);

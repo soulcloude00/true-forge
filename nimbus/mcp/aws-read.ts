@@ -41,6 +41,19 @@ export async function getBilling(month:string){
  return {source:'AWS Cost Explorer, read only',month,services:pages.items,coverage:{maxPages:MAX_PAGES,truncated:pages.truncated},warning:`Service totals are account-level; they do not attribute cost to resource IDs, prove waste, or equal projected savings.${pages.truncated?' Cost Explorer pagination reached the 20-page safety limit; results are incomplete.':''}`};
 }
 
+export async function getDailyBilling(days=14){
+ if(!Number.isInteger(days)||days<7||days>31)throw Error('days must be a whole number between 7 and 31');
+ const end=new Date();end.setUTCHours(0,0,0,0);
+ const start=new Date(end);start.setUTCDate(start.getUTCDate()-days);
+ const startDate=start.toISOString().slice(0,10),endDate=end.toISOString().slice(0,10);
+ const client=new CostExplorerClient({region:'us-east-1'});
+ const pages=await collectPages(async token=>{
+  const result=await client.send(new GetCostAndUsageCommand({TimePeriod:{Start:startDate,End:endDate},Granularity:'DAILY',Metrics:['UnblendedCost'],GroupBy:[{Type:'DIMENSION',Key:'SERVICE'}],NextPageToken:token}));
+  return {items:(result.ResultsByTime||[]).flatMap(day=>(day.Groups||[]).map(group=>({date:day.TimePeriod?.Start||'',service:group.Keys?.[0]||'',amount:group.Metrics?.UnblendedCost?.Amount||'',unit:group.Metrics?.UnblendedCost?.Unit||''}))),token:result.NextPageToken};
+ });
+ return {source:'AWS Cost Explorer, read only',startDate,endDateExclusive:endDate,days,granularity:'DAILY',services:pages.items,coverage:{maxPages:MAX_PAGES,truncated:pages.truncated},warning:`Daily totals are account/service-level, not resource attribution. Cost Explorer data is delayed and recent days may be incomplete; compare only dates with adequate data freshness. This evidence does not prove waste or savings.${pages.truncated?' Pagination reached the 20-page safety limit; results are incomplete.':''}`};
+}
+
 export async function markVolumeForReview(input:{region:string;volumeId:string;expectedAccountId:string}){
  const {region,volumeId,expectedAccountId}=input;
  if(!/^[a-z]{2}-[a-z-]+-\d$/.test(region))throw Error('Invalid AWS region');
