@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {makeServer} from './server.ts';
+import {analyzeDailyCosts} from './cost-analysis.ts';
 import {collectPages} from './aws-read.ts';
 
 test('MCP server exposes read-only evidence tools and one bounded review-write tool',async()=>{
@@ -13,7 +14,9 @@ test('MCP server exposes read-only evidence tools and one bounded review-write t
  await client.connect(clientTransport);
  const {tools}=await client.listTools();
  const names=tools.map(x=>x.name).sort();
- assert.deepEqual(names,['inspect_aws_inventory','mark_volume_for_review','read_monthly_service_cost','read_recent_daily_service_cost']);
+ assert.deepEqual(names,['collect_cost_review_evidence','inspect_aws_inventory','mark_volume_for_review','read_monthly_service_cost','read_recent_daily_service_cost']);
+ assert.equal(tools.find(x=>x.name==='collect_cost_review_evidence')?.annotations?.readOnlyHint,true);
+ assert.ok(tools.find(x=>x.name==='collect_cost_review_evidence')?.outputSchema);
  assert.equal(tools.find(x=>x.name==='inspect_aws_inventory')?.annotations?.readOnlyHint,true);
  assert.equal(tools.find(x=>x.name==='read_monthly_service_cost')?.annotations?.readOnlyHint,true);
  assert.equal(tools.find(x=>x.name==='read_recent_daily_service_cost')?.annotations?.readOnlyHint,true);
@@ -23,6 +26,13 @@ test('MCP server exposes read-only evidence tools and one bounded review-write t
  assert.match(write?.description||'',/reversible.*review marker/i);
  await client.close();
  await server.close();
+});
+
+test('daily cost analysis excludes incomplete end date and computes deterministic service changes',()=>{
+ const result=analyzeDailyCosts([{date:'2026-09-01',service:'EC2',amount:'2',unit:'USD'},{date:'2026-09-02',service:'EC2',amount:'3',unit:'USD'},{date:'2026-09-03',service:'EC2',amount:'100',unit:'USD'}],'2026-09-03');
+ assert.equal(result.endpointDelta?.firstAmount,2);
+ assert.equal(result.endpointDelta?.lastAmount,3);
+ assert.equal(result.topServiceChanges[0]?.absoluteChange,1);
 });
 
 test('paginated collector follows continuation tokens and returns accumulated items',async()=>{

@@ -4,7 +4,7 @@ const client=new TrueForge({baseUrl:process.env.TRUEFORGE_BASE_URL||'http://loca
 const action=process.argv[2];
 const agentName='nimbus-cost-agent';
 const scheduleName='nimbus-daily-cost-review';
-const scheduleTask='Scheduled read-only AWS review. Call inspect_aws_inventory for the configured AWS region and read_recent_daily_service_cost for the last 14 complete UTC days. Report the 14-day hourly EC2 CPU/network window, the 100-instance utilization cap, missing datapoints, account identity, capture times, inventory pagination, and Cost Explorer freshness. Compare completed daily service totals within the returned window, separating data lag from a real change. Low CPU/network activity is a review signal only; request owner, workload, and dependency evidence before describing an instance as idle. Produce a concise evidence report with scope, relevant changes, missing data, and follow-up questions. Do not call mark_volume_for_review or perform any AWS write during a scheduled run. Do not claim per-resource cost, savings, waste, or deletion safety from these inputs.';
+const scheduleTask='Scheduled read-only AWS review. Call collect_cost_review_evidence once for the configured region and 14-day window. Report the account identity, 14-day hourly EC2 CPU/network window, 100-instance utilization cap, missing datapoints, capture times, inventory pagination, and Cost Explorer freshness. Explain the deterministic comparison of completed daily service totals; exclude the incomplete end date. Low CPU/network activity is a review signal only; request owner, workload, and dependency evidence before describing an instance as idle. Produce a concise evidence report with scope, relevant changes, missing data, and follow-up questions. Do not call mark_volume_for_review or perform any AWS write during a scheduled run. Do not claim per-resource cost, savings, waste, or deletion safety from these inputs.';
 const manifest={cron:'0 9 * * *',timezone:'Asia/Kolkata',status:action==='enable'?'active':'paused',task:scheduleTask};
 
 if(!['enable','pause'].includes(action)){
@@ -17,7 +17,7 @@ try{
  const agent=agents.data.find(item=>item.name===agentName);
  if(!agent){throw new Error(`Saved agent ${agentName} was not found. Configure a model in TrueForge and run npm run agent:install -- provider/model-name first.`);}
  const configuredMcp=agent.manifest.mcpServers?.find(server=>server.name==='nimbus-aws-review');
- const requiredTools=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
+ const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
  if(!configuredMcp||requiredTools.some(name=>!configuredMcp.enableTools?.includes(name))||!configuredMcp.requireApprovalForTools?.includes('mark_volume_for_review')){
   throw new Error('The saved agent is missing expected Nimbus tools or the approval gate; repair and verify the agent before scheduling it.');
  }

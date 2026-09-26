@@ -5,7 +5,7 @@ const mcpUrl=process.env.NIMBUS_MCP_URL||'http://127.0.0.1:8792/mcp';
 const client=new TrueForge({baseUrl,timeoutInSeconds:10});
 const spec=JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../trueforge-agent-spec.json',import.meta.url)));
 const agentName=spec.name;
-const requiredTools=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
+const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
 const readiness={server:false,mcp:false,model:false,connector:false,agent:false,sandbox:false};
 const failures=[];
 

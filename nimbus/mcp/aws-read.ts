@@ -3,6 +3,7 @@ import {ElasticLoadBalancingV2Client,DescribeLoadBalancersCommand} from '@aws-sd
 import {STSClient,GetCallerIdentityCommand} from '@aws-sdk/client-sts';
 import {CostExplorerClient,GetCostAndUsageCommand} from '@aws-sdk/client-cost-explorer';
 import {CloudWatchClient,GetMetricDataCommand} from '@aws-sdk/client-cloudwatch';
+import {analyzeDailyCosts} from './cost-analysis.ts';
 
 const MAX_PAGES=20;
 const UTILIZATION_DAYS=14;
@@ -140,6 +141,14 @@ export async function getDailyBilling(days=14){
   return {items:(result.ResultsByTime||[]).flatMap(day=>(day.Groups||[]).map(group=>({date:day.TimePeriod?.Start||'',service:group.Keys?.[0]||'',amount:group.Metrics?.UnblendedCost?.Amount||'',unit:group.Metrics?.UnblendedCost?.Unit||''}))),token:result.NextPageToken};
  });
  return {source:'AWS Cost Explorer, read only',startDate,endDateExclusive:endDate,days,granularity:'DAILY',services:pages.items,coverage:{maxPages:MAX_PAGES,truncated:pages.truncated},warning:`Daily totals are account/service-level, not resource attribution. Cost Explorer data is delayed and recent days may be incomplete; compare only dates with adequate data freshness. This evidence does not prove waste or savings.${pages.truncated?' Pagination reached the 20-page safety limit; results are incomplete.':''}`};
+}
+
+export async function collectCostReviewEvidence(region=process.env.AWS_REGION||'us-east-1',days=14){
+ if(!Number.isInteger(days)||days<7||days>31)throw Error('days must be a whole number between 7 and 31');
+ const capturedAt=new Date().toISOString();
+ const [inventory,dailyCosts]=await Promise.all([getInventory(region),getDailyBilling(days)]);
+ const analysis=analyzeDailyCosts(dailyCosts.services,dailyCosts.endDateExclusive);
+ return {source:'Nimbus bounded read-only AWS cost review',capturedAt,identity:{accountId:inventory.accountId,region:inventory.region},inventory,dailyCosts,analysis};
 }
 
 export async function markVolumeForReview(input:{region:string;volumeId:string;expectedAccountId:string}){

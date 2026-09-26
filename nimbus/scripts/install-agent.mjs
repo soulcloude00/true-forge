@@ -8,11 +8,24 @@ if(!model||!model.includes('/')||model==='REPLACE_WITH_CONFIGURED_MODEL'){consol
 spec.manifest.model.name=model;
 if(model==='openai/gpt-6-luna')spec.manifest.model.params={...(spec.manifest.model.params||{}),reasoningEffort:'none'};
 const requiredApprovalTool='mark_volume_for_review';
-const requiredTools=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost',requiredApprovalTool];
+const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost',requiredApprovalTool];
 const desiredServer=spec.manifest.mcp_servers.find(s=>s.name==='nimbus-aws-review');
 if(!desiredServer||requiredTools.some(name=>!desiredServer.enable_tools.includes(name))||!desiredServer.require_approval_for_tools.includes(requiredApprovalTool)){
- console.error('Refusing to install: the agent spec must enable all three Nimbus tools and require approval for mark_volume_for_review.');
+ console.error('Refusing to install: the agent spec must enable the combined evidence tool, drill-down tools, and approval-gated review marker.');
  process.exit(2);
+}
+
+async function ensureSkills(){
+ const existing=(await client.settings.skills.list()).data||[];
+ for(const desired of spec.skill_catalog||[]){
+  const found=existing.find(item=>item.manifest?.name===desired.name);
+  if(found){
+   const current=found.manifest;
+   if(current.url!==desired.url||current.path!==desired.path||current.ref!==desired.ref)throw new Error(`TrueForge skill ${desired.name} already points to a different source; refusing to replace it.`);
+   continue;
+  }
+  await client.settings.skills.create({manifest:desired});
+ }
 }
 
 function verifySavedAgent(agent){
@@ -29,6 +42,7 @@ function verifySavedAgent(agent){
 }
 
 try{
+ await ensureSkills();
  const configuredModels=await client.models.list();
  if(!configuredModels.data.some(item=>item.name===model)){
   if(model!=='openai/gpt-6-luna')throw new Error(`Model ${model} is not available in TrueForge Settings.`);
@@ -45,7 +59,7 @@ try{
  const response=await client.agents.list();
  const existing=response.data||[];
  if(existing.some(a=>a.name===spec.name)){console.error(`${spec.name} already exists; inspect it in the UI before replacing a working agent.`);process.exit(2);}
- const {data:created}=await client.agents.create({name:spec.name,description:'Approval-first AWS cost review with evidence tools and one gated review-tag action',manifest:{model:spec.manifest.model,instructions:spec.manifest.instructions,mcpServers:spec.manifest.mcp_servers.map(s=>({name:s.name,enableTools:s.enable_tools,requireApprovalForTools:s.require_approval_for_tools,preload:s.preload})),config:{sandbox:spec.manifest.config.sandbox,generativeUi:spec.manifest.config.generative_ui,askUserQuestions:spec.manifest.config.ask_user_questions,iterationLimit:spec.manifest.config.iteration_limit}}});
+ const {data:created}=await client.agents.create({name:spec.name,description:'Approval-first AWS cost review with one-call structured evidence, deterministic comparisons, reusable skills, and one gated review-tag action',manifest:{model:spec.manifest.model,instructions:spec.manifest.instructions,skills:spec.manifest.skills,mcpServers:spec.manifest.mcp_servers.map(s=>({name:s.name,enableTools:s.enable_tools,requireApprovalForTools:s.require_approval_for_tools,preload:s.preload})),config:{sandbox:spec.manifest.config.sandbox,generativeUi:spec.manifest.config.generative_ui,askUserQuestions:spec.manifest.config.ask_user_questions,iterationLimit:spec.manifest.config.iteration_limit}}});
  const saved=created.id?await client.agents.get(created.id):{data:created};
  const verified=verifySavedAgent(saved.data);
  console.log(`Created and verified ${saved.data.name||spec.name} in TrueForge, id ${saved.data.id||'returned by server'}`);

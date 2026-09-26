@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test *.test.ts mcp/*.test.ts",
+    "bench": "node --experimental-strip-types benchmarks/run.mjs",
     "scan": "node --experimental-strip-types demo.ts",
     "typecheck": "tsc --noEmit",
     "dev": "vite --host 0.0.0.0",
