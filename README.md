@@ -1,6 +1,6 @@
 # Nimbus — AWS cost review on TrueForge
 
-Nimbus is an AWS cost-review agent designed to gather inventory and service-level cost evidence, validate a bounded report in TrueForge's sandbox, and prepare a human review. Its local OpenAI model, agent, connector, tools, and approval selector are configured, but no TrueForge sandbox provider is configured yet, so a live sandbox run is not verified. If explicitly asked, it can add one fixed review tag to an unattached EBS volume after TrueForge presents the exact tool call and receives human approval. It cannot delete or stop resources.
+Nimbus is an AWS cost-review agent designed to gather live inventory, hourly EC2 CPU/network evidence, and service-level cost evidence, validate a bounded report in TrueForge's sandbox, and prepare a human review. Its local OpenAI model, agent, connector, tools, and approval selector are configured, but no TrueForge sandbox provider is configured yet, so a live sandbox run is not verified. If explicitly asked, it can add one fixed review tag to an unattached EBS volume after TrueForge presents the exact tool call and receives human approval. It cannot delete or stop resources.
 
 ## Project provenance and event rules
 
@@ -9,7 +9,7 @@ This repository contains a pre-event Nimbus prototype copied from the supplied h
 ## What is implemented
 
 - The React app's original scanner uses synthetic or locally pasted JSON and labels those results as estimates, not live account findings.
-- A separate local MCP server reads AWS STS, EC2, ELB, and Cost Explorer data. Inventory pagination is capped at 20 pages per service and reports truncation. Cost Explorer is also paginated with an explicit cap.
+- A separate local MCP server reads AWS STS, EC2, ELB, CloudWatch, and Cost Explorer data. Inventory pagination is capped at 20 pages per service and reports truncation. CloudWatch returns hourly CPU and network evidence for at most 100 EC2 instances over 14 complete UTC days; missing/incomplete metrics are surfaced. Cost Explorer is also paginated with an explicit cap, but provides account/service totals, not resource-level cost attribution.
 - TrueForge's saved `nimbus-cost-agent` uses `openai/gpt-6-luna`, enables three read tools and the bounded `mark_volume_for_review` tool, and requires approval for that exact write. An opt-in TrueForge schedule can run a read-only review daily at 09:00 Asia/Kolkata; it is not active by default. The tag tool checks the current AWS account, region, volume ID, and unattached/available state, then adds only `nimbus:review-state=candidate-for-human-review`. A pre-existing different value is not overwritten. The agent has no delete, stop, or snapshot tool.
 - The Nimbus Agent panel is wired to start a session with the saved TrueForge agent through the TypeScript SDK, render streamed harness events, and let a person allow or reject a pending approval. Its evidence checklist only marks MCP and sandbox work observed when matching session events arrive. No completed model session or sandbox event has been verified yet. The Live Evidence panel calls the read-only MCP tools for direct review.
 
@@ -56,7 +56,7 @@ Open the Vite URL printed by the command. In **Agent**, start `nimbus-cost-agent
 
 ## Demo, limitations, and research
 
-Use [`nimbus/docs/demo-script.md`](nimbus/docs/demo-script.md) for the five-minute walkthrough and [`nimbus/docs/safety.md`](nimbus/docs/safety.md) for tool boundaries. The live inventory does not contain utilization history, ownership, dependencies, or per-resource costs. Unattached does not mean idle or safe to delete; the tag only requests human review and does not realize savings.
+Use [`nimbus/docs/demo-script.md`](nimbus/docs/demo-script.md) for the five-minute walkthrough and [`nimbus/docs/safety.md`](nimbus/docs/safety.md) for tool boundaries. The live inventory now includes hourly CPU/network metrics for up to 100 EC2 instances; it still lacks owner, dependency, backup, and memory evidence. CloudWatch activity is a review signal, not proof of idleness. Resource-level Cost Explorer data is unavailable in the connected payer account because opt-in is off, so service totals are not per-resource costs. Unattached does not mean idle or safe to delete; the tag only requests human review and does not realize savings.
 
 The researched event profile, scoring rubric, eligibility, TrueForge feature survey, API/SDK notes, and source links are in [`research/agents-that-act-trueforge-research.md`](research/agents-that-act-trueforge-research.md). The full docs index and version-matched API operation/schema inventory are captured in [`research/trueforge-docs-api-audit-2026-09-26.md`](research/trueforge-docs-api-audit-2026-09-26.md), with source snapshots in `research/snapshots/`. The original handoff audit is in [`research/nimbus-handoff-assessment.md`](research/nimbus-handoff-assessment.md).
 

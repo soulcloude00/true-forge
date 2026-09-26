@@ -13,6 +13,7 @@
     "mcp": "node --experimental-strip-types mcp/server.ts",
     "verify:setup": "node scripts/verify-setup.mjs",
     "agent:install": "node scripts/install-agent.mjs",
+    "agent:update": "node scripts/update-agent.mjs",
     "monitor:enable": "node scripts/manage-monitor.mjs enable",
     "monitor:pause": "node scripts/manage-monitor.mjs pause",
     "mcp:smoke": "node scripts/smoke-local.mjs"
@@ -29,6 +30,7 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.1141.0",
     "@aws-sdk/client-cost-explorer": "^3.1141.0",
     "@aws-sdk/client-ec2": "^3.1141.0",
     "@aws-sdk/client-elastic-load-balancing-v2": "^3.1141.0",

@@ -4,9 +4,10 @@ Checked 26 September 2026 (Asia/Kolkata). This is a dated audit, not a claim tha
 
 ## Source snapshots
 
-- `snapshots/trueforge-docs-index-2026-09-26.txt`: complete `https://trueforge.dev/llms.txt` inventory captured on the check date. It contains 94 page entries, including narrative guides and endpoint-reference pages.
+- `snapshots/trueforge-docs-index-2026-09-26.txt`: complete `https://trueforge.dev/llms.txt` inventory captured on the check date. It contains 94 Markdown links (93 absolute page links plus the relative OpenAPI link); the snapshot is 101 physical lines including headings, blank lines, and metadata. It includes narrative guides and endpoint-reference pages.
 - `snapshots/trueforge-openapi-0.2.1.json`: live OpenAPI emitted by the local TrueForge v0.2.1 server at `http://localhost:8790/api/v1/openapi.json`. This is the integration contract used by the running installation.
-- Public docs OpenAPI at `https://trueforge.dev/openapi.json` reported 0.3.0-rc.0 at check time. That version is newer than local v0.2.1; do not silently apply its schema to local SDK calls.
+- `snapshots/trueforge-public-openapi-0.3.0-rc.0.json`: public OpenAPI fetched from `https://trueforge.dev/openapi.json` on 26 September 2026.
+- The public docs schema is newer than local v0.2.1; do not silently apply it to local SDK calls.
 
 ## Version drift
 

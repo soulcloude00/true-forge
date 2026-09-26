@@ -18,7 +18,7 @@ Target: five minutes. Run this only after a model provider, connector, agent, an
 
 ### 0:30–1:30 — TrueForge reaches AWS
 
-In the TrueForge session, request inventory and one month of service-level cost evidence for the authorized account and region. Show the real MCP calls and returned account, capture time, counts, and coverage. Call out any page-cap truncation, and explain that monthly service totals are not per-resource costs.
+In the TrueForge session, request inventory, 14 complete days of hourly EC2 CPU/network evidence, and one month of service-level costs for the authorized account and region. Show the real MCP calls and returned account, capture time, counts, and coverage. Call out any page or metric cap, and explain that monthly service totals are not per-resource costs.
 
 ### 1:30–2:30 — Run an evidence check in the sandbox
 
@@ -26,7 +26,7 @@ Ask Nimbus to validate the returned evidence in the TrueForge sandbox: count rec
 
 ### 2:30–3:20 — Explain uncertainty
 
-Ask for missing utilization history, owner, backup/restore dependency, and pricing evidence before making an optimization recommendation. Require references to the returned resource IDs and identify unknowns. Do not present an unattached volume as waste or claim savings from service-level billing totals.
+Ask for owner, backup/restore dependency, memory, and resource-level pricing evidence before making an optimization recommendation. Require references to the returned resource IDs and identify unknowns. Low CPU/network activity is only a review signal. Do not present an unattached volume as waste or claim savings from service-level billing totals.
 
 ### 3:20–4:20 — Show the approval boundary
 
@@ -34,12 +34,12 @@ Only if the operator explicitly requested a review marker, have Nimbus propose t
 
 ### 4:20–5:00 — Architecture and limits
 
-Show the path: operator → TrueForge agent/session → AWS review MCP → AWS APIs; separately, TrueForge sandbox validates returned evidence. Nimbus's static scanner is a synthetic/local-input preview. State limits plainly: inventory page cap, missing utilization metrics, service-level rather than resource-level spend, AWS permissions needed for live reads, and the single optional tag write.
+Show the path: operator → TrueForge agent/session → AWS review MCP → AWS APIs; separately, TrueForge sandbox validates returned evidence. Nimbus's static scanner is a synthetic/local-input preview. State limits plainly: inventory and metric caps, missing utilization/ownership evidence, service-level rather than resource-level spend, AWS permissions needed for live reads, and the single optional review-tag write.
 
 ## Proof to capture
 
 - Saved TrueForge agent and actual streamed session, not only the Nimbus UI.
-- Real AWS MCP response with account/region and coverage metadata.
+- Real AWS MCP response with account/region, metric-window, and coverage metadata.
 - A TrueForge sandbox execution event from a configured provider.
 - TrueForge's approval pause showing the exact `mark_volume_for_review` call and arguments; show the resulting tag only if explicitly approved in the demo account.
 - A clean-clone README path and a clear statement that synthetic data is not live account evidence.

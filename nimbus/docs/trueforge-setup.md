@@ -16,7 +16,7 @@ npm ci
 npm run mcp
 ```
 
-The Streamable HTTP endpoint is `http://127.0.0.1:8792/mcp`. It exposes four tools: `inspect_aws_inventory`, `read_monthly_service_cost`, `read_recent_daily_service_cost`, and `mark_volume_for_review`. Inventory and Cost Explorer calls paginate up to 20 pages and report when that cap truncates coverage. Cost Explorer output is service-level billing data, not resource-level cost attribution. Daily data can lag and the daily tool reports a UTC range ending before the current day. AWS reads require STS identity, EC2/ELB describe, and Cost Explorer read permissions. The optional tag call additionally requires EC2 `CreateTags`.
+The Streamable HTTP endpoint is `http://127.0.0.1:8792/mcp`. It exposes four tools: `inspect_aws_inventory`, `read_monthly_service_cost`, `read_recent_daily_service_cost`, and `mark_volume_for_review`. Inventory and Cost Explorer calls paginate up to 20 pages and report when that cap truncates coverage. Inventory also asks CloudWatch for hourly CPU, NetworkIn, and NetworkOut evidence over 14 complete UTC days for up to 100 EC2 instances; it reports incomplete/missing data and never treats gaps as zero. Cost Explorer output is service-level billing data, not resource-level cost attribution. Resource-level Cost Explorer requires payer-account opt-in; that capability check was denied in the current account. Daily data can lag and the daily tool reports a UTC range ending before the current day. AWS reads require STS identity, EC2/ELB describe, CloudWatch `GetMetricData`, and Cost Explorer read permissions. The optional tag call additionally requires EC2 `CreateTags`.
 
 Start TrueForge in a second terminal, keeping its local no-login server on loopback:
 
@@ -28,7 +28,7 @@ The outbound URL guard stays enabled; the local MCP address is the only added ho
 
 ## Configure and run the agent
 
-The checked-in `trueforge-agent-spec.json` and installer configure `nimbus-cost-agent` for `openai/gpt-6-luna`. If the OpenAI provider is already configured but the installed TrueForge catalog is older, the installer adds the GPT-6 Luna API model ID to that provider while sending TrueForge's documented redacted-key sentinel, preserving the stored key. OpenAI documents `reasoning_effort: "none"` for GPT-6 Luna function calling through Chat Completions, so the installer sets it on this model:
+The checked-in `trueforge-agent-spec.json` and installer configure `nimbus-cost-agent` for `openai/gpt-6-luna`. If the OpenAI provider is already configured but the installed TrueForge catalog is older, the installer adds the GPT-6 Luna API model ID to that provider while sending TrueForge's documented redacted-key sentinel, preserving the stored key. OpenAI documents `reasoning_effort: "none"` for GPT-6 Luna function calling through Chat Completions, so the installer sets it on this model. After changing the manifest instructions or tool boundary, use `npm run agent:update` to update and read back the saved agent without replacing its model, tools, or approval selector:
 
 ```sh
 npm run agent:install -- openai/gpt-6-luna

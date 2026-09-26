@@ -1,6 +1,6 @@
 # Nimbus cost-review product research — September 26, 2026
 
-Cloud cost work is recurring: teams need cost allocation, context-rich recommendations, budgets, anomaly detection, review workflows, and safe action boundaries. Nimbus's current live path gathers paginated AWS inventory and service-level Cost Explorer totals on demand through TrueForge. It does **not** continuously monitor, retain history, detect anomalies, or alert; the synthetic scanner cannot stand in for a bill or connected-account telemetry.
+Cloud cost work is recurring: teams need cost allocation, context-rich recommendations, budgets, anomaly detection, review workflows, and safe action boundaries. Nimbus's live path gathers paginated AWS inventory, hourly EC2 CPU/network metrics, and service-level Cost Explorer totals on demand through TrueForge. It does **not** continuously monitor, retain an independent baseline, detect anomalies, or alert; the synthetic scanner cannot stand in for a bill or connected-account telemetry. Resource-level Cost Explorer access is currently disabled for the connected payer account, so per-resource costs cannot be attributed from those service totals.
 
 ## Product direction
 
@@ -10,8 +10,8 @@ The implemented next phase is an opt-in native TrueForge schedule: run read-only
 
 | Priority | Capability | Current status / boundary |
 |---|---|---|
-| 1 | Evidence gathering | Implemented on demand via AWS STS, EC2, ELB, and Cost Explorer MCP tools; paginated up to 20 pages with truncation reported. |
-| 2 | Review leads | Existing local TypeScript rules run on synthetic or pasted AWS-shaped data; not connected to live resource utilization or costs. |
+| 1 | Evidence gathering | Implemented on demand via AWS STS, EC2, ELB, CloudWatch, and Cost Explorer MCP tools; paginated up to 20 pages with truncation reported. CloudWatch activity is available for up to 100 EC2 instances over 14 complete UTC days. |
+| 2 | Review leads | Existing local TypeScript rules still run on synthetic or pasted AWS-shaped data. Live CPU/network evidence is shown in the separate account report and is not yet wired into the scanner's candidate rules. |
 | 3 | Service cost comparison | One-month service-grouped Cost Explorer read; account/service totals are not per-resource attribution. |
 | 4 | Approval-gated marker | One fixed EBS review tag after exact account/region/resource/state checks and TrueForge approval. No destructive tool. |
 | 5 | Recurring monitoring | Opt-in native TrueForge schedule is implemented: daily agent session, configured-region inventory, and trailing daily account/service cost review. No independent baseline store, every-region sweep, or external alert delivery yet; the schedule is inactive until explicitly enabled in TrueForge. |

@@ -6,7 +6,7 @@ import {getInventory,getBilling,getDailyBilling,markVolumeForReview} from './aws
 
 export function makeServer(){
  const server=new McpServer({name:'nimbus-aws-review',version:'0.1.0'});
- server.registerTool('inspect_aws_inventory',{description:'Read the caller-configured AWS account inventory in one region. First 100 records per paginated service; no utilization or deletion claims.',inputSchema:{region:z.string().optional()},annotations:{readOnlyHint:true}},async({region})=>{
+ server.registerTool('inspect_aws_inventory',{description:'Read the caller-configured AWS account inventory in one region and hourly CloudWatch CPU/network evidence for up to 100 EC2 instances over the last 14 complete UTC days. Missing or incomplete metrics are unknown, not zero; neither metrics nor account/service costs prove waste, resource-level cost, or safe deletion.',inputSchema:{region:z.string().optional()},annotations:{readOnlyHint:true}},async({region})=>{
   try{return {content:[{type:'text' as const,text:JSON.stringify(await getInventory(region))}]};}
   catch(e){return {isError:true,content:[{type:'text' as const,text:`AWS inventory lookup failed: ${e instanceof Error?e.message:'unknown error'}`}]};}
  });
