@@ -25,7 +25,7 @@ try{
  if(!connectors.data?.some(server=>server.name==='nimbus-aws-review')){
   throw new Error('TrueForge Settings does not contain the nimbus-aws-review MCP connector.');
  }
- const schedules=await client.schedules.list({agentNames:agentName,limit:100});
+ const schedules=await client.schedules.list({agentNames:agentName,limit:25});
  let matching=schedules.data.find(item=>item.name===scheduleName);
  while(!matching&&schedules.hasNextPage()){
   await schedules.getNextPage();
