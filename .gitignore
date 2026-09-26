@@ -1,0 +1,16 @@
+# Local tool and OS state
+.delta/
+.DS_Store
+
+# App build artifacts and installed dependencies
+nimbus/node_modules/
+nimbus/dist/
+nimbus/target/
+nimbus/.git-metadata-backup/
+
+# Local credentials and key material
+.env
+.env.*
+!.env.example
+*.pem
+*.key

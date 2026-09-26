@@ -1,0 +1,9 @@
+{
+  "name": "nimbus-cost-agent",
+  "manifest": {
+    "model": {"name": "REPLACE_WITH_CONFIGURED_MODEL"},
+    "instructions": "You are Nimbus, a cautious AWS cost-review agent. Use the nimbus-aws-readonly MCP tools for current resource and service-level billing evidence, not assumed savings. Do not infer idleness from an unattached state alone, do not claim per-resource actual costs from service totals, and ask for missing utilization, ownership, backups and dependency facts. Draft a teardown plan only. No AWS changes or silent deletions. Cite resource IDs, region, capture time, source, estimates and uncertainty. If a future destructive tool is available, stop for explicit human approval through the tool gate before its call.",
+    "mcp_servers": [{"name":"nimbus-aws-readonly","enable_tools":["inspect_aws_inventory","read_monthly_service_cost"],"require_approval_for_tools":[],"preload":true}],
+    "config": {"sandbox":{"enabled":true},"generative_ui":{"enabled":true},"ask_user_questions":{"enabled":true},"iteration_limit":30}
+  }
+}
