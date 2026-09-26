@@ -28,14 +28,14 @@ The outbound URL guard stays enabled; the local MCP address is the only added ho
 
 ## Configure and run the agent
 
-The checked-in `trueforge-agent-spec.json` and installer configure `nimbus-cost-agent`. After a provider/model is configured:
+The checked-in `trueforge-agent-spec.json` and installer configure `nimbus-cost-agent` for `openai/gpt-6-luna`. If the OpenAI provider is already configured but the installed TrueForge catalog is older, the installer adds the GPT-6 Luna API model ID to that provider while sending TrueForge's documented redacted-key sentinel, preserving the stored key. OpenAI documents `reasoning_effort: "none"` for GPT-6 Luna function calling through Chat Completions, so the installer sets it on this model:
 
 ```sh
-npm run agent:install -- provider/model-name
+npm run agent:install -- openai/gpt-6-luna
 npm run verify:setup
 ```
 
-The agent enables the three evidence tools and `mark_volume_for_review`. In TrueForge's agent configuration, `Require approval` must be on for `mark_volume_for_review`; leave it off for the read tools. The installer reads the created agent back through the API and fails verification unless all four tools and the approval selector are present. Confirm the tool list and approval setting in the saved agent before a live turn. The MCP smoke command only checks the MCP tool list; MCP annotations do not enforce or prove TrueForge's agent approval gate.
+The agent enables the three evidence tools and `mark_volume_for_review`. In TrueForge's agent configuration, `Require approval` must be on for `mark_volume_for_review`; leave it off for the read tools. The installer reads the created agent back through the API and fails verification unless the selected model, all four tools, and the approval selector are present. Confirm the tool list and approval setting in the saved agent before a live turn. The MCP smoke command only checks the MCP tool list; MCP annotations do not enforce or prove TrueForge's agent approval gate.
 
 ## Opt into daily monitoring
 
@@ -53,7 +53,7 @@ Run `npm run dev` for the Nimbus interface on the same laptop. The Agent view co
 
 ## Known limits
 
-- `npm run verify:setup` checks the local TrueForge API, Nimbus MCP endpoint, configured model, connector, saved agent/tool approval gate, and sandbox provider. It exits nonzero while required setup is missing. Current local state: connector configured; zero model providers/models; no saved agent; no sandbox provider; no schedule active.
+- `npm run verify:setup` checks the local TrueForge API, Nimbus MCP endpoint, configured model, connector, saved agent/tool approval gate, and sandbox provider. It exits nonzero while required setup is missing. Current local state: OpenAI provider configured; `openai/gpt-6-luna` available and selected on `nimbus-cost-agent` with `reasoning_effort=none`; connector and exact approval selector verified; no sandbox provider; no schedule active.
 - Sandbox is enabled in the agent draft, but actual isolated execution remains unverified until a provider is configured and a live sandbox event is observed.
 - Never expose local TrueForge without authentication to the public internet. A publicly hosted Nimbus preview cannot access a user's loopback TrueForge or MCP services.
 - Sources: [TrueForge quickstart](https://trueforge.dev/quickstart), [SDK quickstart](https://trueforge.dev/api/quickstart), [SDK session and approval flow](https://trueforge.dev/api/use-agent), [sandbox requirements](https://trueforge.dev/sandbox), and [TrueForge API docs](http://localhost:8790/api/v1/docs) when the local server is running.

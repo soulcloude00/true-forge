@@ -2,11 +2,11 @@ import {readFile} from 'node:fs/promises';
 import {TrueForge} from '@truefoundry/trueforge-sdk';
 
 const client=new TrueForge({baseUrl:process.env.TRUEFORGE_BASE_URL||'http://localhost:8790',timeoutInSeconds:15});
-const model=process.argv[2];
-if(!model||!model.includes('/')){console.error('Usage: npm run agent:install -- provider/model-name (use a model configured in local TrueForge Settings)');process.exit(2);}
-
 const spec=JSON.parse(await readFile(new URL('../trueforge-agent-spec.json',import.meta.url)));
+const model=process.argv[2]||spec.manifest.model.name;
+if(!model||!model.includes('/')||model==='REPLACE_WITH_CONFIGURED_MODEL'){console.error('Usage: npm run agent:install -- provider/model-name');process.exit(2);}
 spec.manifest.model.name=model;
+if(model==='openai/gpt-6-luna')spec.manifest.model.params={...(spec.manifest.model.params||{}),reasoningEffort:'none'};
 const requiredApprovalTool='mark_volume_for_review';
 const requiredTools=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost',requiredApprovalTool];
 const desiredServer=spec.manifest.mcp_servers.find(s=>s.name==='nimbus-aws-review');
@@ -20,13 +20,28 @@ function verifySavedAgent(agent){
  const enabled=server?.enableTools||[];
  const approval=server?.requireApprovalForTools||[];
  const missing=requiredTools.filter(name=>!enabled.includes(name));
- if(missing.length||!approval.includes(requiredApprovalTool)){
-  throw new Error(`Saved agent verification failed: missing enabled tools [${missing.join(', ')}]; approval selectors [${approval.join(', ')}]`);
+ const savedModel=agent?.manifest?.model?.name;
+ const savedEffort=agent?.manifest?.model?.params?.reasoningEffort;
+ if(missing.length||!approval.includes(requiredApprovalTool)||savedModel!==model||(model==='openai/gpt-6-luna'&&savedEffort!=='none')){
+  throw new Error(`Saved agent verification failed: missing enabled tools [${missing.join(', ')}]; approval selectors [${approval.join(', ')}]; model [${savedModel||'missing'}]; reasoning effort [${savedEffort||'default'}]`);
  }
- return {enabled,approval};
+ return {enabled,approval,model:savedModel,reasoningEffort:savedEffort};
 }
 
 try{
+ const configuredModels=await client.models.list();
+ if(!configuredModels.data.some(item=>item.name===model)){
+  if(model!=='openai/gpt-6-luna')throw new Error(`Model ${model} is not available in TrueForge Settings.`);
+  const providers=await client.settings.modelProviders.list();
+  const provider=providers.data.find(item=>item.name==='openai');
+  if(!provider?.manifest.auth?.apiKey)throw new Error('Configure the OpenAI provider in TrueForge Settings before adding gpt-6-luna.');
+  const providerModels=provider.manifest.models||[];
+  if(!providerModels.some(item=>item.modelId==='gpt-6-luna'))providerModels.push({modelId:'gpt-6-luna',name:'gpt-6-luna',properties:{contextLength:1050000,maxOutputTokens:128000,reasoningEfforts:['none','low','medium','high','xhigh','max']}});
+  await client.settings.modelProviders.createOrUpdate({manifest:{...provider.manifest,models:providerModels,auth:{...provider.manifest.auth,apiKey:'<redacted>'}}});
+  const refreshed=await client.models.list();
+  if(!refreshed.data.some(item=>item.name==='openai/gpt-6-luna'))throw new Error('TrueForge did not expose openai/gpt-6-luna after registering it on the configured OpenAI provider.');
+  console.log('Added gpt-6-luna to the existing OpenAI provider; saved credential preserved.');
+ }
  const response=await client.agents.list();
  const existing=response.data||[];
  if(existing.some(a=>a.name===spec.name)){console.error(`${spec.name} already exists; inspect it in the UI before replacing a working agent.`);process.exit(2);}
@@ -36,4 +51,5 @@ try{
  console.log(`Created and verified ${saved.data.name||spec.name} in TrueForge, id ${saved.data.id||'returned by server'}`);
  console.log(`Enabled tools: ${verified.enabled.join(', ')}`);
  console.log(`Approval selectors: ${verified.approval.join(', ')}`);
+ console.log(`Model: ${verified.model}${verified.reasoningEffort?` (reasoning effort ${verified.reasoningEffort})`:''}`);
 }catch(e){console.error(`Agent registration or saved-manifest verification failed: ${e instanceof Error?e.message:String(e)}. Verify local TrueForge, configured model, MCP connector, and sandbox Settings.`);process.exit(1);}

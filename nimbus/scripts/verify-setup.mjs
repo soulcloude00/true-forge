@@ -48,9 +48,15 @@ if(readiness.server){
    const server=agent.manifest.mcpServers?.find(item=>item.name==='nimbus-aws-review');
    const approval=server?.requireApprovalForTools?.includes('mark_volume_for_review')===true;
    const enabled=requiredTools.every(name=>server?.enableTools?.includes(name));
-   readiness.agent=enabled&&approval;
-   console.log(`Saved agent ${agentName}: ${readiness.agent?'configured with expected tools and approval gate':'found but manifest needs repair'}`);
-   if(!readiness.agent) failures.push('Repair the saved agent tools and mark_volume_for_review approval gate.');
+   const modelName=agent.manifest.model?.name;
+   const modelAvailable=models.data.some(model=>model.name===modelName);
+   const reasoningEffort=agent.manifest.model?.params?.reasoningEffort;
+   const effortReady=modelName!=='openai/gpt-6-luna'||reasoningEffort==='none';
+   readiness.agent=enabled&&approval&&modelAvailable&&effortReady;
+   console.log(`Saved agent ${agentName}: ${readiness.agent?'ready':'needs repair'}; model ${modelName||'missing'} ${modelAvailable?'available':'unavailable'}${modelName==='openai/gpt-6-luna'?`; reasoning effort ${reasoningEffort||'default'}`:''}`);
+   if(!modelAvailable)failures.push(`Add/configure the saved agent model ${modelName||'(missing)'} in TrueForge Settings.`);
+   if(!effortReady)failures.push('Set gpt-6-luna reasoning effort to none so Chat Completions tool calling works.');
+   if(!enabled||!approval)failures.push('Repair the saved agent tools and mark_volume_for_review approval gate.');
   }else{
    console.log(`Saved agent ${agentName}: missing`);
    failures.push('Install nimbus-cost-agent after selecting a configured model.');

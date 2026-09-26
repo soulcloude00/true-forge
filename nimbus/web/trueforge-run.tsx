@@ -3,6 +3,8 @@ import {TrueForge,TrueForgeApi,isEventDelta,mergeEventDelta} from '@truefoundry/
 
 type Approval={threadId:string;toolCallId:string;toolName:string;argumentsText:string};
 type EventIndex=Map<string,TrueForgeApi.TurnStreamingEvent>;
+type ToolCallEvidence={type:string;name:string};
+type HarnessEvidence={mcpToolResponse:boolean;sandboxCreated:boolean;sandboxToolResponse:boolean;approvalPaused:boolean};
 
 function eventText(content:TrueForgeApi.ModelMessageEvent['content']):string{
  if(typeof content==='string')return content;
@@ -35,13 +37,17 @@ export function TrueForgeRun(){
  const [error,setError]=useState('');
  const [sessionId,setSessionId]=useState('');
  const [pending,setPending]=useState<Approval[]>([]);
+ const [evidence,setEvidence]=useState<HarnessEvidence>({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false});
 
  const consume=async(stream:Awaited<ReturnType<TrueForge['sessions']['createTurnStream']>>,index:EventIndex)=>{
+  const toolCalls=new Map<string,ToolCallEvidence>();
   for await(const {data:event} of stream.withMetadata()){
+   let recordedEvent:TrueForgeApi.TurnStreamingEvent=event;
    if(isEventDelta(event)){
     const base=index.get(event.id);
-    if(base)mergeEventDelta(base,event);
-   }else index.set(event.id,event);
+    if(base){mergeEventDelta(base,event);recordedEvent=base;}
+   }else{index.set(event.id,event);recordedEvent=event;}
+   if(recordedEvent.type==='model.message')for(const call of recordedEvent.toolCalls||[])toolCalls.set(call.id,{type:call.toolInfo.type,name:call.function.name});
    if(event.type==='model.message.delta'&&event.threadId==='main'&&event.content)setAnswer(current=>current+event.content);
    if(event.type==='tool.approval_required'){
     const items:Approval[]=[];
@@ -52,6 +58,13 @@ export function TrueForgeRun(){
      if(call)items.push({threadId:event.threadId,toolCallId:ref.id,toolName:call.function.name,argumentsText:call.function.arguments});
     }
     setPending(items);
+    setEvidence(value=>({...value,approvalPaused:true}));
+   }
+   if(event.type==='sandbox.created')setEvidence(value=>({...value,sandboxCreated:true}));
+   if(event.type==='tool.response'){
+    const call=toolCalls.get(event.toolCallId);
+    if(call?.type==='mcp')setEvidence(value=>({...value,mcpToolResponse:true}));
+    if(call?.type==='truefoundry-system'&&/(sandbox|code)/i.test(call.name))setEvidence(value=>({...value,sandboxToolResponse:true}));
    }
    if(event.type==='turn.done'&&event.state.status==='done'){
     const finalText=eventText(event.state.output?.content??null);
@@ -62,7 +75,7 @@ export function TrueForgeRun(){
  };
 
  const run=async()=>{
-  setBusy(true);setEvents([]);setAnswer('');setPending([]);setError('');setSessionId('');
+  setBusy(true);setEvents([]);setAnswer('');setPending([]);setError('');setSessionId('');setEvidence({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false});
   try{
    const client=new TrueForge({baseUrl:`${window.location.origin}/api/trueforge`,timeoutInSeconds:600});
    const {data:session}=await client.sessions.create({agent:{name:'nimbus-cost-agent'}});
@@ -98,6 +111,12 @@ export function TrueForgeRun(){
    {pending.map(item=><article key={item.toolCallId}><b>{item.toolName}</b><pre>{item.argumentsText}</pre></article>)}
    <div><button className="agent-run-button" onClick={()=>void decide('allow')} disabled={busy}>Allow this tag change</button><button className="agent-deny-button" onClick={()=>void decide('deny')} disabled={busy}>Reject</button></div>
   </div>}
+  {events.length>0&&<div className="harness-evidence" aria-live="polite"><h3>Observed harness evidence</h3><ul>
+   <li data-complete={evidence.mcpToolResponse}>{evidence.mcpToolResponse?'Observed':'Not observed'} · Nimbus MCP tool response</li>
+   <li data-complete={evidence.sandboxCreated}>{evidence.sandboxCreated?'Observed':'Not observed'} · TrueForge sandbox provisioned</li>
+   <li data-complete={evidence.sandboxToolResponse}>{evidence.sandboxToolResponse?'Observed':'Not observed'} · sandbox or Code Mode tool response</li>
+   <li data-complete={evidence.approvalPaused}>{evidence.approvalPaused?'Observed':'Not requested in this run'} · human approval pause for a gated action</li>
+  </ul><p>A request or enabled setting is not execution evidence. Only events from this TrueForge session count.</p></div>}
   {events.length>0&&<div className="agent-stream"><h3>TrueForge event stream</h3><ol>{events.map((event,index)=><li key={`${index}-${event}`}>{event}</li>)}</ol>{answer&&<div className="agent-answer"><h3>Agent report</h3><pre>{answer}</pre></div>}</div>}
  </section>
 }
