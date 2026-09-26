@@ -53,7 +53,7 @@ Run `npm run dev` for the Nimbus interface on the same laptop. The Agent view co
 
 ## Known limits
 
-- Current local browser setup has the connector configured. TrueForge API checks show zero model providers, no saved agents, and no sandbox provider. The earlier unsaved builder draft showed the approval checkbox on for the tag tool. No schedule is active.
+- `npm run verify:setup` checks the local TrueForge API, Nimbus MCP endpoint, configured model, connector, saved agent/tool approval gate, and sandbox provider. It exits nonzero while required setup is missing. Current local state: connector configured; zero model providers/models; no saved agent; no sandbox provider; no schedule active.
 - Sandbox is enabled in the agent draft, but actual isolated execution remains unverified until a provider is configured and a live sandbox event is observed.
 - Never expose local TrueForge without authentication to the public internet. A publicly hosted Nimbus preview cannot access a user's loopback TrueForge or MCP services.
 - Sources: [TrueForge quickstart](https://trueforge.dev/quickstart), [SDK quickstart](https://trueforge.dev/api/quickstart), [SDK session and approval flow](https://trueforge.dev/api/use-agent), [sandbox requirements](https://trueforge.dev/sandbox), and [TrueForge API docs](http://localhost:8790/api/v1/docs) when the local server is running.
