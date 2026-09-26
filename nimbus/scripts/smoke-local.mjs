@@ -5,5 +5,6 @@ const client=new Client({name:'nimbus-connector-check',version:'0.1.0'});
 await client.connect(new StreamableHTTPClientTransport(new URL(url)));
 const {tools}=await client.listTools();
 console.log(tools.map(t=>`${t.name}: readOnly=${!!t.annotations?.readOnlyHint}`).join('\n'));
-if(tools.length!==2||tools.some(t=>t.annotations?.readOnlyHint!==true))process.exitCode=1;
+console.log('Approval gate: declared in the checked-in agent spec; this MCP smoke check cannot verify or enforce the saved-agent setting.');
+if(tools.length!==3||!tools.find(t=>t.name==='mark_volume_for_review')||tools.filter(t=>t.annotations?.readOnlyHint!==true).length!==1)process.exitCode=1;
 await client.close();

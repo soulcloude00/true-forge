@@ -1,137 +1,93 @@
 # Agents That Act × TrueForge: research and build direction
 
-Research date: 26 September 2026  
-Workspace status: empty repository; no existing application or team requirements were present.
+Research checked: 26 September 2026. This file records the public event profile, TrueForge product/API findings, and how the current Nimbus implementation maps to them. Event details can change; confirm the official page before relying on logistics.
 
-## Executive recommendation
+## Project direction: Nimbus Cloud Janitor
 
-Build **SafeShip: a release captain that turns a real GitHub issue or release request into a tested draft release**. It reads the selected repository and its changes through GitHub, inspects the diff, writes or updates release notes in an isolated TrueForge sandbox, and runs the repository's declared validation command there. It then presents a compact evidence-backed release plan and pauses at a TrueForge human approval checkpoint before opening/updating the release PR or publishing anything. For the hackathon, keep the final external mutation to **creating a draft GitHub PR**; do not publish packages or deploy.
+**Problem:** Cloud teams lack a reliable way to spot ongoing AWS waste and rising costs across their accounts, so they need timely, evidence-backed reviews before deciding what to change.
 
-This is a stronger fit than a generic assistant because it has a valuable real job, a live system integration, actual code execution, a reversible artifact, and a clearly demonstrated stopping point. It maps directly to the event's own “Release captain” example while adding a tangible test-and-evidence loop.
+Nimbus is an AWS cost-review agent that gathers live inventory and service-level Cost Explorer evidence through a real MCP server, validates the evidence in TrueForge's sandbox, and prepares a review. Its current collector is on demand. It does not yet run scheduled monitoring, keep historical snapshots, detect anomalies, or deliver alerts. The planned product progression is scheduled read-only checks and evidence-linked alerts, then explicit human-reviewed bounded actions. Unattended cleanup is out of scope.
+
+The current implementation exposes two read tools and one optional fixed review-tag write. The write can only add `nimbus:review-state=candidate-for-human-review` to one currently available, unattached EBS volume after a fresh account/region/volume check and TrueForge approval. It cannot delete, stop, snapshot, or change another AWS resource. The marker means “ask a human to review,” not “safe to delete.” Synthetic UI data is separately labeled and is not live account evidence.
+
+**Eligibility caveat:** the event page says projects must be built during the event and pre-built projects are not eligible. The user-provided handoff directory contained a substantial pre-event Nimbus prototype. Subsequent integration work does not establish eligibility. The team should ask the organizers whether the handoff may be extended for this event; do not represent the work as created from scratch during the event.
 
 ## Event profile: Agents That Act
 
-The official event page describes a free, one-day, in-person event by TrueFoundry and Polaris at Polaris campus in Bengaluru on Saturday, 26 September 2026. Round 1 is online and individual; Round 2 is an invited in-person build day. Teams can have up to four members. The advertised event scale is 350–400 builders. OpenAI API and AWS cloud credits are listed as partner support.
+The official event page describes a free, one-day, in-person event by TrueFoundry and Polaris at Polaris campus in Bengaluru on Saturday, 26 September 2026. Round 1 is online and individual; Round 2 is an invited in-person build day. Teams can have up to four members. The advertised event scale is 350–400 builders. OpenAI API and AWS credits are listed as partner support.
 
-The theme is “Reach real systems. Run real code. Stop before it hurts.” Projects can target any domain, but must use TrueForge and show the harness doing real work. The page calls for a real connected system rather than a mocked tool, code actually executed in an isolated sandbox, and an explicit human pause before a consequential/irreversible action.
+The theme is “Reach real systems. Run real code. Stop before it hurts.” Projects may target any domain, but must use TrueForge and show the harness doing real work: reach a real connected system, execute code in an isolated sandbox, and pause for a person before a consequential action.
 
 ### Judging rubric (100 points)
 
-| Criterion | Points | What judges explicitly want | SafeShip proof |
+| Criterion | Points | What judges look for | Nimbus proof to demonstrate |
 |---|---:|---|---|
-| Harness is doing the work | 30 | TrueForge reaches a real tool, runs generated code in its sandbox, and holds for a person. A prompt wrapper scores near zero. | Live GitHub MCP/API read; actual sandbox test run; visible approval event before draft PR creation. |
-| It actually runs | 25 | Working software that a stranger can clone and run from the README; narrow working scope beats broad incomplete scope. | One repo, one release path, fixture-free demo setup, exact install/config/run steps and fallback demo repo. |
-| Where it stops | 20 | Defensible boundaries, sandbox/gates, clear explanation of proposed action, low blast radius on errors. | Read-only by default; sandboxed local work; no merge/publish/deploy; approval payload shows files, checks, diff, target branch. |
-| Job worth handing over | 15 | A real chore people would delegate. | Release preparation is routine, multi-step, and costly to do carelessly. |
-| Demo clarity | 10 | Five-minute demonstration and ability to explain the architecture. | Scripted five-minute story and visible sequence: request → GitHub → sandbox → checks → approval → draft PR. |
+| Harness is doing the work | 30 | TrueForge reaches a real tool, runs code in its sandbox, and holds for a person; prompt wrappers score poorly. | TrueForge session trace with actual AWS MCP reads, sandbox validation, and pending approval for the exact tag tool. |
+| It actually runs | 25 | Working software a stranger can clone and run; narrow and complete beats broad and broken. | Reproducible README, configured model, live local MCP, saved agent, verified run, and honest limitations. |
+| Where it stops | 20 | Clear boundaries, sandbox/gates, explained action, small blast radius. | Show only the fixed review tag, fresh identity/state checks, explicit TrueForge approval, reject path, no cleanup tools. |
+| Job worth handing over | 15 | A real, useful repeated task. | Explain recurring AWS cost review and the intended next step: scheduled evidence-backed monitoring, not present-day capability. |
+| Demo clarity | 10 | Five-minute demonstration and understandable architecture. | Request → real AWS evidence → sandbox report → explicit approval gate → boundary/limits. |
 
-### Event logistics, eligibility, and prizes
+### Logistics, eligibility, prizes
 
-- In-person build day: 26 September 2026, Polaris campus, Bengaluru. The page lists a provisional 09:00 check-in, 10:00 kickoff, 10:30 TrueForge/gateway walkthrough, 12:00 build start, 16:00 mentor checkpoint, 19:00 submission close, 19:30 demos, and 21:00 results; the hosts say times may shift.
-- Build prizes: ₹1,00,000 first, ₹75,000 second, ₹50,000 third. Separate public build-story awards: ₹50,000 and ₹25,000. Community prizes are open to Round 1 registrants whether shortlisted or not; post on LinkedIn or X tagging `@truefoundry` and `@polariscodes`, with `#agentsthatact`.
-- Eligibility: 18+, can attend in Bengaluru, no prior TrueFoundry experience required. Free entry; travel is not covered. Registration is individual; teams up to four.
-- Build-on-the-day rule: pre-built projects are not eligible. Prior research and reading docs are encouraged. Use AI assistants if desired, disclose them in README, and be ready to explain the architecture. Open domain/stack except the agent must run on TrueForge. Entrants keep their IP; hosts ask permission to showcase demos.
-- Shortlisting emphasizes a specific, technically plausible idea and motivation rather than résumé credentials. The event page says seats are capped at 350–400.
-
-**Date caveat:** the page currently says Round 1 closed 18 September, shortlist 21 September, and build day 26 September. Since the research date is the build-day date, confirm registration/invitation and on-site status before treating this as still actionable.
+- In-person build day: 26 September 2026, Polaris campus, Bengaluru. The page lists 09:00 check-in, 10:00 kickoff, 10:30 TrueForge/gateway walkthrough, 12:00 build start, 16:00 mentor checkpoint, 19:00 submission close, 19:30 demos, and 21:00 results; hosts note times may shift.
+- Build prizes: ₹1,00,000 first, ₹75,000 second, ₹50,000 third. Separate public build-story awards: ₹50,000 and ₹25,000. The community challenge is open to Round 1 registrants whether shortlisted or not; post on LinkedIn or X tagging `@truefoundry` and `@polariscodes`, with `#agentsthatact`.
+- Eligibility: 18+, able to attend in Bengaluru, no prior TrueFoundry experience required. Free entry; travel is not covered. Round 1 is individual; teams may have up to four members. The page says seats are capped at 350–400.
+- Round 1 closed 18 September; shortlist announced 21 September; build submissions close 19:00 on 26 September. Since this research was checked on the event date, registration/invitation and submission status must be confirmed directly.
+- Build-on-the-day rule: pre-built projects are not eligible. Prior research and reading docs are encouraged. AI assistants are permitted; disclose their use in README and be ready to explain the architecture. Open domain/stack, but the agent must run on TrueForge. Entrants retain IP; hosts ask permission to showcase demos.
+- Judges listed by the host: Rahul Bhattacharya (Adopt.AI CTO), Ramakant Yadav (Scalar Field founder), Abhishek (TrueFoundry CTO), Rivu Chakraborty (Sarvam), and Suhas Motwani (Product Folks).
 
 ## TrueForge product and open-source project
 
-TrueForge is TrueFoundry's MIT-licensed, open-source, model-neutral agent harness. It supplies the runtime around a model: agent turn loop, tool routing, streamed events, session persistence, context management, sandbox execution, approval checkpoints, and a chat UI. It is not itself a model or a hosted-only agent service.
+TrueForge is TrueFoundry's MIT-licensed, model-neutral agent harness. It supplies the runtime around a model: agent turn loop, tool routing, streaming events, session persistence, context management, sandbox execution, approval checkpoints, and a chat UI. It is not itself a model or hosted-only service. See the [official introduction](https://trueforge.dev/introduction) and [open-source repository](https://github.com/truefoundry/trueforge).
 
-### Capabilities relevant to the build
+### Product capabilities
 
-- **Providers:** OpenAI, Anthropic, Google Gemini, catalog models, and OpenAI-compatible endpoints. The agent configuration chooses a model and reasoning effort.
-- **MCP/connectors:** remote MCP servers with header auth or OAuth; configurable catalogs and custom MCP URLs. The docs quickstart demonstrates connecting Exa.
-- **Skills:** git-backed `SKILL.md` packs loaded on demand in the sandbox.
-- **Sandbox:** execution is provisioned as a tool when needed (Daytona is documented currently). Use for generated code, file work, and enabled skills; keep external credentials in TrueForge/config, not inside generated code.
-- **Human checkpoints:** tool approval, ask-user questions, and Generative UI; configure approval for every consequential write.
-- **Context controls:** dynamic subagents, deferred tool loading, Code Mode, large-result offloading, and compaction.
-- **Persistence/inspection:** sessions persist; the UI exposes turns, tools, subagents, token use, and timing. Schedules exist for recurring unattended runs, but are unnecessary for the hackathon demo.
+- **Models:** provider/model selection, with supported OpenAI, Anthropic, Gemini, catalog, and OpenAI-compatible providers. The provider key must be configured in the local TrueForge settings or deployment secrets.
+- **MCP connectors:** connect local or remote MCP tools, with auth/configuration options. Expose only tools the agent needs; tool descriptions/annotations do not replace the approval control.
+- **Skills:** git-backed `SKILL.md` packs loaded on demand in the runtime/sandbox.
+- **Sandbox:** provisioned as a tool for code/file execution. Sandbox isolation depends on a configured provider; the sandbox toggle alone is not proof of an isolated run. The [sandbox docs](https://trueforge.dev/sandbox) currently describe Daytona as the supported provider.
+- **Human controls:** per-tool approval, ask-user questions, and Generative UI. Exact approval configuration is part of the agent manifest; verify it in the saved agent and observe the approval event.
+- **Context/runtime:** dynamic subagents, deferred tool loading, Code Mode, large-result offloading, compaction, and iteration limits.
+- **Persistence/inspection:** sessions persist; UI/API events expose turns and tool execution. Schedules are available but are not a substitute for proving a product's monitoring pipeline.
 - **Interfaces:** bundled chat UI, REST + Server-Sent Events/OpenAPI, TypeScript SDK `@truefoundry/trueforge-sdk`, and React UI SDK `@truefoundry/trueforge-ui`.
-- **Deployment:** local single-process + SQLite; hosted Docker Compose/Kubernetes/Helm/Railway + Postgres/Redis. Local mode has no login by default and is explicitly for localhost/personal use, not public production exposure.
-- **Gateway:** optional TrueFoundry AI Gateway can add routing, rate limits, budgets, credentials, guardrails, and traces without changing the agent. Event says it is useful but not required to win.
+- **Deployment:** local single process with SQLite; hosted options include Docker Compose/Kubernetes/Helm/Railway and Postgres/Redis. Local mode has no login by default; keep it on localhost. For shared use configure authentication.
+- **Optional gateway:** TrueFoundry AI Gateway can provide routing, rate limits, budgets, credentials, guardrails, and traces. The event says it may help but is not required.
 
-### Getting started / runtime expectations
+### Install and local runtime
 
-Official quickstart requires Node.js 22.14+ and starts local mode with:
+The [official quickstart](https://trueforge.dev/quickstart) requires Node.js 22.14+ and starts local mode with `npx @truefoundry/trueforge`. UI/API defaults to `http://localhost:8790`. Configure a model under Settings → Models, connect MCP under Settings → Connectors, configure a sandbox provider if code execution is required, then create/save the agent. Do not publicly expose the default unauthenticated local server.
 
-```sh
-npx @truefoundry/trueforge@latest
-```
+### API and SDK details verified for Nimbus
 
-The UI/API is then at `http://localhost:8790`. Configure a model in Settings → Models; add a real MCP server in Settings → Connectors; configure Daytona in Sandbox providers if sandbox code is needed; create and save the agent with its model, instructions, MCP tools, skills, and runtime settings. For team/shared use, docs recommend hosted mode with login enabled, not public local mode.
+- The [SDK quickstart](https://trueforge.dev/api/quickstart) and [agent-use guide](https://trueforge.dev/api/use-agent) document agent registration and session turns. A running server exposes interactive REST documentation at `/api/v1/docs` and OpenAPI JSON at `/api/v1/openapi.json`.
+- Nimbus uses `TrueForge`/`TrueForgeApi` from `@truefoundry/trueforge-sdk`, creates a session, and streams turns with `createTurnStream(...).withMetadata()`. The iterator yields `{data: event}` records; stream processing handles model and tool events.
+- For approval, capture the pending `tool_call.approval_required` event's `threadId` and `toolCallId`, show tool name/arguments, then resume the same session with a `user.tool_approval` input whose status is `allow` or `deny`. Do not silently treat UI planning state as an approval.
+- Explicit tool selection uses named MCP tools; `requireApprovalForTools` is configured per selected tool. Nimbus intends approval on `mark_volume_for_review` only. This is a real cloud mutation boundary and must be verified in the saved agent before use.
+- Runtime API details can vary by version. The local server's OpenAPI schema and the installed SDK types are authoritative for the exact version under test; do not copy assumed payload shapes from a different release.
 
-### API / SDK research
-
-The docs describe the server as HTTP API + TypeScript SDK. REST and Server-Sent Events are exposed with OpenAPI and interactive documentation at `/api/v1/docs` on a running server. The SDK is documented for sessions, turns, events, and agent specifications. The API reference is generated from the server OpenAPI schema; the live endpoint is the authoritative schema to inspect after launching the matching version. This workspace is currently empty and has no TrueForge checkout, server, credentials, or installed SDK, so endpoint names/payloads should be copied from the running server's `/api/v1/docs` or its repo's `docs/openapi.json`, not guessed here.
-
-For this project, use the TrueForge bundled UI for the demo and its native agent configuration. If a custom front end is needed, call the documented API/SDK for session creation and turn streaming, and preserve streamed approval events. Avoid building a parallel orchestration loop: judges need to see TrueForge drive the work.
-
-### Open-source repository and contribution notes
-
-- Repository: [`truefoundry/trueforge`](https://github.com/truefoundry/trueforge), MIT licensed, with server, frontend, TypeScript SDK, Python SDK, docs, OpenAPI artifacts, deployment charts, and benchmark material.
-- README’s core product claim: one harness runs model calls, MCP tools, skills, sandboxing, approvals, context management, and session state through UI/API/SDK.
-- The project says it benchmarks against Claude Managed Agents and deepagents; treat percentage savings as vendor-reported benchmark claims, not independent guarantees.
-- Contribution guide says generated SDKs/OpenAPI artifacts are not hand-edited; source route handlers are. It asks maintainers to approve non-trivial contribution issues before coding. That policy is relevant only if contributing to TrueForge itself, not building a separate hackathon app.
-
-## Recommended build: SafeShip release captain
-
-### User job
-
-“Prepare this release from issue(s) X: inspect the actual repository changes, run the project's checks in isolation, draft accurate release notes, and open a draft PR only after I review exactly what will change.”
-
-### Narrow hackathon scope
-
-1. User selects one public or personally authorized GitHub repository and names an issue or release request.
-2. Agent uses a real GitHub MCP connector to read repository metadata, recent commits, PRs/issues, and relevant files (read-only permissions for the demo).
-3. Agent produces a bounded release plan and changelog draft grounded in those source items.
-4. Agent stages only the proposed changelog/release-note file into a disposable sandbox, runs the repository's safe declared validation command, and reports command/output. No production code is executed on the host.
-5. Agent presents a review card with source references, exact diff, checks run, target branch, and side effects.
-6. TrueForge pauses at a human checkpoint. On approval, a separately scoped GitHub write action creates a **draft PR**. On rejection, nothing is written. The agent never merges, tags, publishes, deploys, or deletes.
-
-### Why this concept is a good bet
-
-- It is directly analogous to an official event example (release captain) but concretely proves the sandbox/test and approval mechanics.
-- It keeps the external write reversible and easy to explain; no publishing/deploying live product artifacts.
-- Its demo naturally visualizes the chain of responsibility and evidence. It can be trimmed to one feature branch, one Markdown file, and one check if time runs short.
-- It has a clear fallback: run against a team-owned public demo repository with a deliberately small issue. A fixture can illustrate error handling, but the scored run should still visibly connect to a real GitHub system.
-
-## Architecture and permission boundaries
+### Nimbus architecture and boundaries
 
 ```text
-User request
-    ↓
-TrueForge session + configured release-captain agent
-    ├── GitHub MCP (read tools; narrowly scoped write tool only for approved draft PR)
-    ├── TrueForge sandbox (proposed file + declared validation command)
-    └── Human approval checkpoint (exact action and diff shown)
-             ↓ approve only
-        Create draft PR
+Operator
+   ↓
+TrueForge agent/session ─── TrueForge sandbox (validate evidence)
+   │
+   └── Nimbus MCP server ─── AWS STS / EC2 / ELB / Cost Explorer
+                                └── fixed EBS review tag only, after approval
 ```
 
-Default deny: no merge, release publish, package registry, deployment, branch protection change, secret access, destructive git command, or arbitrary shell command. Validate repository/branch paths, cap changed files and output size, set timeouts, and ensure the sandbox has no write credentials. Keep GitHub write credential inaccessible to the sandbox; only the harness-side, post-approval tool receives it. Use the least-privilege token and a throwaway repository for judging.
+The live MCP inventory and service-cost readers paginate up to 20 pages per service and report truncation. Cost Explorer returns service-level totals, not per-resource attribution. The fixed tag action revalidates caller account, region, volume identity, and available/unattached status; it refuses to overwrite a different marker. No delete, stop, or snapshot tool exists. The browser scanner remains a separately labeled synthetic/local-input preview.
 
-## Rubric-to-demo checklist
-
-- [ ] TrueForge UI shows configured agent; actual GitHub connector call visible in session.
-- [ ] Run a real repository validation command inside sandbox; show its result.
-- [ ] Show approval tool configured and event pending; explain why draft PR is the boundary.
-- [ ] Approve once and show a draft PR; demonstrate reject path on a second run if possible.
-- [ ] README from a clean clone explains prerequisites, setup, environment variables, exact run steps, safe demo repository, permission scopes, AI assistants used, architecture, and known limitations.
-- [ ] Five-minute demo: 30s real-world pain → 60s request and real tool reach → 60s sandbox/test → 60s approval boundary and draft PR → 60s architecture/safety/failure handling → 30s takeaway.
-- [ ] Build story post: tell the specific release chore, show the harness steps, include one surprising failure/learning, tag both accounts and hashtag.
+Nimbus does **not currently** run on a schedule, retain billing baselines, detect trends/anomalies, or deliver alerts. Its present job is an operator-triggered review. A recurring read-only monitor with dated evidence and clear coverage/permission alerts is the next product phase; any resource change must remain a separate, freshly checked, human-approved decision.
 
 ## Sources
 
-Primary sources consulted:
+Primary sources checked:
 
-- [HackCulture event URL supplied by user](https://hackculture.io/hackathons/agents-that-act) (could not be fetched by the browser tool directly; resolved through the linked official event page).
-- [Official TrueFoundry × Polaris event page and full rubric](https://www.truefoundry.com/es/truefoundry-hackathon)
-- [TrueForge documentation home / introduction](https://trueforge.dev/introduction)
-- [TrueForge quickstart](https://trueforge.dev/quickstart)
-- [TrueForge GitHub repository and README](https://github.com/truefoundry/trueforge)
-- [TrueForge API docs discovery](https://trueforge.dev/api-reference) (per docs, running server exposes interactive API docs at `/api/v1/docs`)
-- [TrueForge SDK docs](https://trueforge.dev/sdk)
+- [User-supplied HackCulture event page](https://hackculture.io/hackathons/agents-that-act) (not directly retrievable in the research browser; event terms checked against the host page).
+- [Official TrueFoundry × Polaris event profile and rubric](https://www.truefoundry.com/es/truefoundry-hackathon)
+- [TrueForge introduction](https://trueforge.dev/introduction), [quickstart](https://trueforge.dev/quickstart), [API quickstart](https://trueforge.dev/api/quickstart), [agent sessions/approval](https://trueforge.dev/api/use-agent), and [sandbox docs](https://trueforge.dev/sandbox)
+- [TrueForge GitHub repository](https://github.com/truefoundry/trueforge) (MIT license and source)
 
-Marketing claims, especially benchmark savings, have been labelled as vendor claims above. Event logistics and criteria are transcribed from the official host page, which should be rechecked for late changes.
+The event times and participant terms above reflect the published host page and should be checked for last-minute changes. TrueForge product claims above are linked to official documentation; vendor benchmark claims are not treated as independent guarantees.

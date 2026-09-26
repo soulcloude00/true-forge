@@ -5,7 +5,7 @@ import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
 import {makeServer} from './server.ts';
 import {collectPages} from './aws-read.ts';
 
-test('MCP server exposes exactly two read-only AWS tools',async()=>{
+test('MCP server exposes read-only evidence tools and one bounded review-write tool',async()=>{
  const server=makeServer();
  const client=new Client({name:'nimbus-test',version:'0.1.0'});
  const [clientTransport,serverTransport]=InMemoryTransport.createLinkedPair();
@@ -13,8 +13,13 @@ test('MCP server exposes exactly two read-only AWS tools',async()=>{
  await client.connect(clientTransport);
  const {tools}=await client.listTools();
  const names=tools.map(x=>x.name).sort();
- assert.deepEqual(names,['inspect_aws_inventory','read_monthly_service_cost']);
- assert.ok(tools.every(x=>x.annotations?.readOnlyHint===true));
+ assert.deepEqual(names,['inspect_aws_inventory','mark_volume_for_review','read_monthly_service_cost']);
+ assert.equal(tools.find(x=>x.name==='inspect_aws_inventory')?.annotations?.readOnlyHint,true);
+ assert.equal(tools.find(x=>x.name==='read_monthly_service_cost')?.annotations?.readOnlyHint,true);
+ const write=tools.find(x=>x.name==='mark_volume_for_review');
+ assert.equal(write?.annotations?.readOnlyHint,false);
+ assert.equal(write?.annotations?.destructiveHint,false);
+ assert.match(write?.description||'',/reversible.*review marker/i);
  await client.close();
  await server.close();
 });

@@ -1,6 +1,6 @@
 # Nimbus - TrueForge cloud-cost review
 
-Nimbus is an approval-first cloud cost exploration app. The bundled React/TypeScript site runs a real, read-only scanner over built-in **synthetic AWS-shaped inventory** or a locally pasted JSON inventory, not a connected AWS account. Imported JSON is unverified and never uploaded. The five detection rules produce resource-level leads, rough estimates and evidence. It never sends cloud API calls or changes a resource or bill.
+Nimbus is an AWS cost review app with a local TrueForge agent integration. Its current collection model is **on demand**: an operator asks the agent to inspect current AWS inventory and read service-level costs. It does not watch continuously, schedule scans, or send alerts yet. The bundled React/TypeScript scanner runs over built-in **synthetic AWS-shaped inventory** or locally pasted JSON. Separately, a local MCP server reads live AWS inventory and service-level costs. The TrueForge agent can add one fixed review tag to a currently unattached EBS volume after human approval; it has no delete, stop, or snapshot tool. Synthetic scanner output is not a connected account report.
 
 ## Start
 
@@ -17,9 +17,13 @@ Open the local URL Vite prints. `?view=setup` and `?view=dashboard` open local Q
 
 ## TrueForge live-agent path
 
-The browser scanner and live agent are clearly distinguished: scanner estimates use synthetic or locally pasted data, while the local `nimbus-aws-readonly` MCP server reads live inventory and service-level monthly costs. Start the MCP server with `npm run mcp`, then configure `http://127.0.0.1:8792/mcp` as a TrueForge connector. Start TrueForge with `npx @truefoundry/trueforge@0.2.1`, configure a model and Daytona sandbox, then create the saved agent with `npm run agent:install -- provider/model-name`. Nimbus’s Agent view uses the TrueForge TypeScript SDK to create a session and stream the agent’s real events; its Live Evidence panel calls the read-only MCP tools for direct review. Setup details are in [`docs/trueforge-setup.md`](docs/trueforge-setup.md); the timed walkthrough is in [`docs/demo-script.md`](docs/demo-script.md).
+The browser scanner and live agent are clearly distinguished: scanner estimates use synthetic or locally pasted data, while the local `nimbus-aws-review` MCP server reads live inventory and service-level monthly costs and exposes one fixed review-tag write. Start the MCP server with `npm run mcp`, then configure `http://127.0.0.1:8792/mcp` as a TrueForge connector. Start TrueForge with the outbound URL guard enabled and the loopback MCP host allowlisted; the exact command is in [`docs/trueforge-setup.md`](docs/trueforge-setup.md). Configure a model provider in TrueForge Settings, then create the saved agent with `npm run agent:install -- provider/model-name`. Nimbus’s Agent view uses the TrueForge TypeScript SDK to create a session, stream real events, and let the user approve or reject the pending tool call; its Live Evidence panel calls only the read-only MCP tools.
 
-The agent has only read-only AWS tools. Its sandbox is available for bounded analysis, and the agent can ask the user questions. There is no AWS mutation action; the browser's “Approve for plan” is local review state only. A live AWS call requires your own configured AWS credentials and is not part of automated tests.
+## Monitoring plan
+
+Cloud cost visibility should recur, but Nimbus is not yet an always-on watcher. The intended next step is a scheduled, read-only inventory and Cost Explorer review (for example, daily inventory plus daily/monthly spend comparisons), with dated snapshots, coverage/permission checks, and alerts that link to evidence rather than claiming a resource is safe to delete. Keep optimization proposals separate from monitoring: any cloud change must be a specific, bounded action with a fresh state check and a TrueForge human approval. Do not run unattended cleanup. The present prototype has no scheduler, snapshot store, baseline/anomaly detection, or alert delivery; the current live reads happen only when requested.
+
+The agent can use two read-only AWS tools and one human-approved tag action. That action verifies the expected account and region, rechecks that the volume is available and unattached, refuses to overwrite a different review-state tag, and adds only `nimbus:review-state=candidate-for-human-review`. It cannot delete, stop, or snapshot a resource. The browser's “Approve for plan” remains local review state only. AWS credentials and `ec2:CreateTags` permission are required only for the live tag action.
 
 ## What you can actually do
 

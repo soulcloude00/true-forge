@@ -79,3 +79,31 @@ Evolve Nimbus into a single honest workflow:
 - [TrueForge sandbox model](https://trueforge.dev/sandbox)
 - [TrueForge quickstart](https://trueforge.dev/quickstart)
 
+## Follow-up: current repository and TrueForge status (26 September 2026)
+
+This follow-up reflects the separate writable repository `/Users/soulcloude/Documents/ChatGPT/true forge`, not the original Downloads handoff inspected above. Preserve the distinction: the prototype was pre-existing, and this follow-up records integration changes; neither fact changes the event's published pre-built-project rule.
+
+### Implementation present in the repository
+
+- Nimbus is now part of the root `true-forge` Git repository alongside the research. The root remote is `https://github.com/soulcloude00/true-forge.git`.
+- AWS MCP now exposes three tools: paginated live inventory, paginated service-level Cost Explorer totals, and the bounded `mark_volume_for_review` tag action. The write verifies caller account, region, exact volume ID and currently available/unattached state; it only adds `nimbus:review-state=candidate-for-human-review`, refuses a different existing marker, and has no deletion/stop/snapshot capability.
+- The checked-in agent spec selects approval for the exact tag tool. The TrueForge browser builder was inspected: it showed the local `nimbus-aws-review` connector with three tools, and the approval control enabled for the tag action. The draft instructions/runtime settings were visible. This is configuration in the unsaved builder, not proof of a saved or executed agent.
+- The Nimbus panel now uses the official TrueForge TypeScript SDK to create a session, stream harness events, and present the approval decision; Live Evidence remains a direct read-only view.
+- Setup, demo, safety, and top-level research docs now distinguish current on-demand evidence gathering from the proposed future scheduled monitoring. Nimbus currently has no scheduler, retained baseline, anomaly detection, or alert delivery.
+
+### Current verification and blockers
+
+- `npm run build` completed successfully (TypeScript check and Vite production build). Vite reported a chunk-size warning for the main JavaScript bundle (>500 kB); build succeeded.
+- `npm run mcp:smoke` completed against the running MCP server and listed the two read-only tools plus the non-read-only fixed tag tool.
+- The local MCP process was restarted from current source at `127.0.0.1:8792`; TrueForge v0.2.1 is live at `localhost:8790`, and its live OpenAPI JSON reports version `0.2.1` with agent/session endpoints.
+- The TrueForge browser Settings → Models page lists provider/model options, but no provider is configured. The agent draft cannot be saved or run until an API provider is configured in that local UI. Do not paste provider keys into chat or commit them.
+- Sandbox is switched on in the draft, but no provider is configured and no real sandbox execution event has been observed. Therefore neither sandbox isolation nor a successful end-to-end agent run is verified.
+- No live AWS call or AWS mutation was performed in this verification. No `npm test` suite was run.
+
+### Remaining steps for a true end-to-end demonstration
+
+1. Configure a model provider privately in TrueForge Settings → Models, then save `nimbus-cost-agent` and verify its model, MCP selection, and exact approval gate.
+2. Configure the documented sandbox provider; run a harmless bounded validation script and capture the actual TrueForge sandbox event.
+3. Run inventory and cost reads against a specifically authorized AWS demo account; verify returned scope and pagination coverage.
+4. Exercise the tag tool only on a suitable dedicated demo resource after an explicit human approval, and verify the marker; also demonstrate denial if time permits.
+5. Ask event organizers whether they permit the pre-event Nimbus handoff as an input. The code history and build-day restriction remain material to eligibility.

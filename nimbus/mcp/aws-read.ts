@@ -1,4 +1,4 @@
-import {EC2Client,DescribeInstancesCommand,DescribeVolumesCommand,DescribeAddressesCommand,DescribeSnapshotsCommand} from '@aws-sdk/client-ec2';
+import {EC2Client,DescribeInstancesCommand,DescribeVolumesCommand,DescribeAddressesCommand,DescribeSnapshotsCommand,CreateTagsCommand} from '@aws-sdk/client-ec2';
 import {ElasticLoadBalancingV2Client,DescribeLoadBalancersCommand} from '@aws-sdk/client-elastic-load-balancing-v2';
 import {STSClient,GetCallerIdentityCommand} from '@aws-sdk/client-sts';
 import {CostExplorerClient,GetCostAndUsageCommand} from '@aws-sdk/client-cost-explorer';
@@ -34,6 +34,29 @@ export async function getBilling(month:string){
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))throw Error('Use YYYY-MM');
  const end=new Date(`${month}-01T00:00:00Z`);end.setUTCMonth(end.getUTCMonth()+1);
  const client=new CostExplorerClient({region:'us-east-1'});
- const result=await client.send(new GetCostAndUsageCommand({TimePeriod:{Start:`${month}-01`,End:end.toISOString().slice(0,10)},Granularity:'MONTHLY',Metrics:['UnblendedCost'],GroupBy:[{Type:'DIMENSION',Key:'SERVICE'}]}));
- return {source:'AWS Cost Explorer, read only',month,services:(result.ResultsByTime||[]).flatMap(t=>t.Groups||[]).map(g=>({service:g.Keys?.[0]||'',amount:g.Metrics?.UnblendedCost?.Amount||'',unit:g.Metrics?.UnblendedCost?.Unit||''})),warning:'Service totals are account-level; these do not attribute cost to individual resource IDs, prove waste, or equal projected savings.'};
+ const pages=await collectPages(async token=>{
+  const result=await client.send(new GetCostAndUsageCommand({TimePeriod:{Start:`${month}-01`,End:end.toISOString().slice(0,10)},Granularity:'MONTHLY',Metrics:['UnblendedCost'],GroupBy:[{Type:'DIMENSION',Key:'SERVICE'}],NextPageToken:token}));
+  return {items:(result.ResultsByTime||[]).flatMap(t=>t.Groups||[]).map(g=>({service:g.Keys?.[0]||'',amount:g.Metrics?.UnblendedCost?.Amount||'',unit:g.Metrics?.UnblendedCost?.Unit||''})),token:result.NextPageToken};
+ });
+ return {source:'AWS Cost Explorer, read only',month,services:pages.items,coverage:{maxPages:MAX_PAGES,truncated:pages.truncated},warning:`Service totals are account-level; they do not attribute cost to resource IDs, prove waste, or equal projected savings.${pages.truncated?' Cost Explorer pagination reached the 20-page safety limit; results are incomplete.':''}`};
+}
+
+export async function markVolumeForReview(input:{region:string;volumeId:string;expectedAccountId:string}){
+ const {region,volumeId,expectedAccountId}=input;
+ if(!/^[a-z]{2}-[a-z-]+-\d$/.test(region))throw Error('Invalid AWS region');
+ if(!/^vol-[0-9a-f]+$/.test(volumeId))throw Error('Invalid EBS volume ID');
+ if(!/^\d{12}$/.test(expectedAccountId))throw Error('Expected account ID must be 12 digits');
+ const sts=new STSClient({region});
+ const identity=await sts.send(new GetCallerIdentityCommand({}));
+ if(identity.Account!==expectedAccountId)throw Error('AWS account does not match the account shown in the review evidence');
+ const ec2=new EC2Client({region});
+ const result=await ec2.send(new DescribeVolumesCommand({VolumeIds:[volumeId]}));
+ const volume=result.Volumes?.find(item=>item.VolumeId===volumeId);
+ if(!volume)throw Error('The requested volume was not found in this account and region');
+ if(volume.State!=='available'||(volume.Attachments?.length||0)>0)throw Error('Only a currently available, unattached EBS volume can receive this review tag');
+ const existingTag=volume.Tags?.find(tag=>tag.Key==='nimbus:review-state');
+ if(existingTag&&existingTag.Value!=='candidate-for-human-review')throw Error('The volume already has a different nimbus:review-state tag; refusing to overwrite it');
+ if(existingTag?.Value==='candidate-for-human-review')return {source:'AWS EC2 DescribeVolumes',accountId:identity.Account,region,volumeId,tag:{key:'nimbus:review-state',value:'candidate-for-human-review'},effect:'Review marker was already present; no change was made.'};
+ await ec2.send(new CreateTagsCommand({Resources:[volumeId],Tags:[{Key:'nimbus:review-state',Value:'candidate-for-human-review'}]}));
+ return {source:'AWS EC2 CreateTags',accountId:identity.Account,region,volumeId,tag:{key:'nimbus:review-state',value:'candidate-for-human-review'},effect:'Added a reversible review marker only. No resource was stopped or deleted.'};
 }

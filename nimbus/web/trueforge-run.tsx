@@ -1,46 +1,103 @@
 import {useState} from 'react';
-import {TrueForge} from '@truefoundry/trueforge-sdk';
+import {TrueForge,TrueForgeApi,isEventDelta,mergeEventDelta} from '@truefoundry/trueforge-sdk';
 
-type StreamEvent={type?:string;content?:string;tool_calls?:Array<{name?:string;tool_name?:string}>;data?:StreamEvent};
-const eventLabel=(event:StreamEvent)=>{
- if(event.type==='sandbox.created')return 'Sandbox created';
- if(event.type==='tool.approval_required')return 'Waiting for tool approval in TrueForge';
- if(event.type==='tool.response_required')return 'TrueForge is requesting a tool response';
- if(event.type==='mcp.initialize')return 'MCP tools connected';
- if(event.type==='turn.done')return 'Turn finished';
- if(event.type==='turn.created')return 'Turn started';
- if(event.type?.startsWith('tool.'))return `Tool event · ${event.type}`;
- if(event.type?.startsWith('model.message'))return 'Agent response';
- return event.type||'Agent event';
-};
+type Approval={threadId:string;toolCallId:string;toolName:string;argumentsText:string};
+type EventIndex=Map<string,TrueForgeApi.TurnStreamingEvent>;
+
+function eventText(content:TrueForgeApi.ModelMessageEvent['content']):string{
+ if(typeof content==='string')return content;
+ return content?.flatMap(part=>part.type==='text'?[part.text]:[]).join('')||'';
+}
+
+function label(event:TrueForgeApi.TurnStreamingEvent):string{
+ switch(event.type){
+  case 'sandbox.created':return 'TrueForge sandbox created';
+  case 'mcp.initialize':return `MCP tools connected · ${event.mcpServers.map(server=>server.name).join(', ')||'server ready'}`;
+  case 'tool.approval_required':return 'TrueForge paused for human approval';
+  case 'tool.response_required':return 'TrueForge paused for a tool response';
+  case 'mcp.auth_required':return 'MCP authentication required';
+  case 'turn.created':return 'Agent turn started';
+  case 'turn.done':return `Agent turn ended · ${event.state.status}`;
+  case 'model.message':return event.toolCalls?.length?`Tool requested · ${event.toolCalls.map(call=>call.function.name).join(', ')}`:'Agent message';
+  case 'model.message.delta':return 'Agent response streaming';
+  case 'tool.response':return 'Tool result received';
+  case 'turn.update':return 'Agent turn updated';
+  case 'thread.created':return `Subagent started · ${event.title}`;
+  case 'thread.done':return 'Subagent finished';
+ }
+}
 
 export function TrueForgeRun(){
- const [prompt,setPrompt]=useState('Inspect my configured AWS account in the configured region using the Nimbus read-only MCP tools. Then use the sandbox to run a small deterministic script that summarizes the returned inventory, validates the account/region/capture metadata, and creates a Markdown evidence report. Clearly state pagination limits and missing utilization data. Do not claim savings, infer idleness, or change AWS resources.');
+ const [prompt,setPrompt]=useState('Inspect my configured AWS account in the configured region using the Nimbus MCP tools. Use the TrueForge sandbox to run a deterministic script that summarizes the returned inventory and creates a Markdown evidence report. Clearly state pagination limits and missing utilization data. If you find one currently available, unattached EBS volume, prepare the exact account, region, and volume ID for the fixed candidate-for-human-review tag. Do not apply the tag unless I explicitly approve the TrueForge tool-approval request shown here. Never delete, stop, snapshot, or change any other AWS resource.');
  const [events,setEvents]=useState<string[]>([]);
  const [answer,setAnswer]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
+ const [sessionId,setSessionId]=useState('');
+ const [pending,setPending]=useState<Approval[]>([]);
+
+ const consume=async(stream:Awaited<ReturnType<TrueForge['sessions']['createTurnStream']>>,index:EventIndex)=>{
+  for await(const {data:event} of stream.withMetadata()){
+   if(isEventDelta(event)){
+    const base=index.get(event.id);
+    if(base)mergeEventDelta(base,event);
+   }else index.set(event.id,event);
+   if(event.type==='model.message.delta'&&event.threadId==='main'&&event.content)setAnswer(current=>current+event.content);
+   if(event.type==='tool.approval_required'){
+    const items:Approval[]=[];
+    for(const ref of event.toolCalls){
+     const message=index.get(ref.sourceEventId);
+     if(message?.type!=='model.message')continue;
+     const call=message.toolCalls?.find(item=>item.id===ref.id);
+     if(call)items.push({threadId:event.threadId,toolCallId:ref.id,toolName:call.function.name,argumentsText:call.function.arguments});
+    }
+    setPending(items);
+   }
+   if(event.type==='turn.done'&&event.state.status==='done'){
+    const finalText=eventText(event.state.output?.content??null);
+    if(finalText)setAnswer(finalText);
+   }
+   setEvents(current=>[...current,label(event)]);
+  }
+ };
+
  const run=async()=>{
-  setBusy(true);setEvents([]);setAnswer('');setError('');
+  setBusy(true);setEvents([]);setAnswer('');setPending([]);setError('');setSessionId('');
   try{
    const client=new TrueForge({baseUrl:`${window.location.origin}/api/trueforge`,timeoutInSeconds:600});
    const {data:session}=await client.sessions.create({agent:{name:'nimbus-cost-agent'}});
+   setSessionId(session.id);
+   const index:EventIndex=new Map();
    const stream=await client.sessions.createTurnStream(session.id,{input:[{type:'user.message',content:prompt}]});
-   for await(const raw of stream){
-    const candidate=raw as StreamEvent;
-    const event=candidate.data&&typeof candidate.data==='object'?candidate.data:candidate;
-    if(event.type==='model.message.delta'&&typeof event.content==='string')setAnswer(current=>current+event.content);
-    const tools=event.tool_calls?.map(tool=>tool.name||tool.tool_name).filter(Boolean);
-    setEvents(current=>[...current,tools?.length?`${eventLabel(event)} · ${tools.join(', ')}`:eventLabel(event)]);
-   }
+   await consume(stream,index);
   }catch(e){setError(e instanceof Error?e.message:'TrueForge turn could not be completed.');}
   finally{setBusy(false)}
  };
+
+ const decide=async(status:'allow'|'deny')=>{
+  if(!sessionId||pending.length===0)return;
+  setBusy(true);setError('');
+  const decisions:TrueForgeApi.UserToolApprovalEvent[]=pending.map(item=>({type:'user.tool_approval',threadId:item.threadId,toolCallId:item.toolCallId,approval:status==='allow'?{status:'allow'}:{status:'deny',reason:'Human reviewer rejected this exact AWS tag change.'}}));
+  setPending([]);
+  try{
+   const client=new TrueForge({baseUrl:`${window.location.origin}/api/trueforge`,timeoutInSeconds:600});
+   const index:EventIndex=new Map();
+   const stream=await client.sessions.createTurnStream(sessionId,{input:decisions});
+   await consume(stream,index);
+  }catch(e){setError(e instanceof Error?e.message:'Could not send the approval decision to TrueForge.');}
+  finally{setBusy(false)}
+ };
+
  return <section className="trueforge-run" aria-labelledby="trueforge-run-title">
-  <div className="live-head"><div><span className="small-label">TRUEFORGE SDK · SESSION + EVENT STREAM</span><h2 id="trueforge-run-title">Run the Nimbus agent</h2><p>This creates a session with `nimbus-cost-agent`. The agent reads through its configured MCP tools and can use its configured sandbox; its actual TrueForge events are shown here.</p></div></div>
-  <label className="agent-prompt-label">Investigation request<textarea value={prompt} onChange={event=>setPrompt(event.target.value)} rows={4} disabled={busy}/></label>
+  <div className="live-head"><div><span className="small-label">TRUEFORGE SDK · LIVE SESSION · HUMAN CHECKPOINT</span><h2 id="trueforge-run-title">Run the Nimbus agent</h2><p>This starts the saved <code>nimbus-cost-agent</code> in TrueForge. Tool calls and sandbox events come from its actual event stream. The one AWS write is an explicit, reversible review tag and waits here for your decision.</p></div><a href="http://localhost:8790" target="_blank" rel="noopener noreferrer">Open TrueForge ↗</a></div>
+  <label className="agent-prompt-label">Investigation request<textarea value={prompt} onChange={event=>setPrompt(event.target.value)} rows={5} disabled={busy}/></label>
   <button className="agent-run-button" onClick={()=>void run()} disabled={busy||!prompt.trim()}>{busy?'Running in TrueForge…':'Start TrueForge investigation'}</button>
-  {error&&<div role="alert" className="live-error"><strong>TrueForge request failed</strong><p>{error}</p><span>Confirm TrueForge is running at localhost:8790 and that the saved agent, model, connector, and sandbox are configured.</span></div>}
-  {events.length>0&&<div className="agent-stream"><h3>Harness events</h3><ol>{events.map((event,index)=><li key={`${index}-${event}`}>{event}</li>)}</ol>{answer&&<div className="agent-answer"><h3>Agent response</h3><pre>{answer}</pre></div>}</div>}
+  {sessionId&&<p className="agent-session-id"><b>TrueForge session</b> <code>{sessionId}</code></p>}
+  {error&&<div role="alert" className="live-error"><strong>TrueForge request failed</strong><p>{error}</p><span>Confirm TrueForge is running at localhost:8790 and that its saved agent, model, connector, AWS permission, and sandbox are configured.</span></div>}
+  {pending.length>0&&<div className="agent-approval" role="alert"><span className="small-label">TRUEFORGE APPROVAL REQUIRED</span><h3>Review this exact AWS change</h3><p>Allowing this call adds one fixed review marker to a currently available, unattached EBS volume. It does not delete, stop, snapshot, or approve cleanup of the volume. Check the account, region, and ID before allowing it.</p>
+   {pending.map(item=><article key={item.toolCallId}><b>{item.toolName}</b><pre>{item.argumentsText}</pre></article>)}
+   <div><button className="agent-run-button" onClick={()=>void decide('allow')} disabled={busy}>Allow this tag change</button><button className="agent-deny-button" onClick={()=>void decide('deny')} disabled={busy}>Reject</button></div>
+  </div>}
+  {events.length>0&&<div className="agent-stream"><h3>TrueForge event stream</h3><ol>{events.map((event,index)=><li key={`${index}-${event}`}>{event}</li>)}</ol>{answer&&<div className="agent-answer"><h3>Agent report</h3><pre>{answer}</pre></div>}</div>}
  </section>
 }
