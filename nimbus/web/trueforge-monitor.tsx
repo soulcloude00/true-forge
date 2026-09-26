@@ -3,15 +3,16 @@ import {TrueForge} from '@truefoundry/trueforge-sdk';
 
 const agentName='nimbus-cost-agent';
 const scheduleName='nimbus-daily-cost-review';
-const scheduleTask='Scheduled read-only AWS review. Call inspect_aws_inventory for the configured AWS region and read_recent_daily_service_cost for the last 14 complete UTC days. Validate account identity, capture times, pagination and Cost Explorer data freshness. Compare completed daily service totals over time, separating data lag from a real change. Produce a concise evidence report with scope, relevant changes, missing data, and follow-up questions. Do not call mark_volume_for_review or perform any AWS write during a scheduled run. Do not claim per-resource cost, savings, waste, or deletion safety from these inputs.';
+const scheduleTask='Scheduled Nimbus cost review. Call collect_cost_review_evidence exactly once for the configured region and 14-day window; its schema is enabled, so do not call list_tools or get_tool_info first. The tool reads AWS evidence and records a bounded local baseline for the exact account and region; local history does not modify AWS resources. Report identity, utilization coverage, missing datapoints, capture time, pagination, and Cost Explorer freshness. Explain first-run or overlap status; when compared, state previous capture, number of overlapping complete UTC dates, and deterministic account/service changes. Exclude the incomplete end date. Cost Explorer can revise or lag; changes are not anomaly verdicts. In the final TrueForge session, use native Generative UI/OpenUI for a compact panel with scope, baseline, up to five service changes, coverage caveats, and follow-up questions; do not create a separate page. Produce a concise Markdown report. Never call mark_volume_for_review or delete_hackathon_demo_volume or perform an AWS resource write during a scheduled run. Do not claim per-resource cost, savings, waste, or deletion safety.';
 const scheduleManifest={cron:'0 9 * * *',timezone:'Asia/Kolkata',status:'active' as const,task:scheduleTask};
 
 type MonitorState={status:'loading'|'needs-setup'|'inactive'|'paused'|'active';scheduleId?:string;message?:string;configurationReady?:boolean};
 
 function configuredAgentReady(agent:Awaited<ReturnType<TrueForge['agents']['get']>>['data']|undefined,connectorNames:string[]){
  const server=agent?.manifest.mcpServers?.find(item=>item.name==='nimbus-aws-review');
- const expected=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
- return !!agent&&!!server&&expected.every(name=>server.enableTools?.includes(name))&&server.requireApprovalForTools?.includes('mark_volume_for_review')===true&&connectorNames.includes('nimbus-aws-review');
+ const expected=['inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review','delete_hackathon_demo_volume'];
+ const approvals=['mark_volume_for_review','delete_hackathon_demo_volume'];
+ return !!agent&&!!server&&expected.every(name=>server.enableTools?.includes(name))&&approvals.every(name=>server.requireApprovalForTools?.includes(name)===true)&&connectorNames.includes('nimbus-aws-review');
 }
 
 export function TrueForgeMonitor(){
@@ -80,9 +81,9 @@ export function TrueForgeMonitor(){
 
  const statusLabel={loading:'Checking TrueForge…','needs-setup':'Setup required',inactive:'Not scheduled',paused:'Paused',active:'Daily monitoring on'}[monitor.status];
  return <section className="trueforge-monitor" aria-labelledby="trueforge-monitor-title">
-  <div className="monitor-heading"><div><span className="small-label">OPTIONAL · READ-ONLY SCHEDULE</span><h2 id="trueforge-monitor-title">Daily cloud review</h2><p>TrueForge can check inventory in the configured AWS region and recent service costs every day, then save the evidence as a session.</p></div><span className={`monitor-status monitor-status-${monitor.status}`}>{statusLabel}</span></div>
+  <div className="monitor-heading"><div><span className="small-label">TRUEFORGE NATIVE SCHEDULE · AWS READS + LOCAL BASELINE</span><h2 id="trueforge-monitor-title">Daily cloud review</h2><p>TrueForge checks inventory and service costs daily, records an account/region-scoped local history snapshot, compares overlapping dates, and saves the evidence in its session trace.</p></div><span className={`monitor-status monitor-status-${monitor.status}`}>{statusLabel}</span></div>
   <div className="monitor-details"><div><b>Runs</b><span>Daily at 09:00 IST</span></div><div><b>Scope</b><span>Configured region · 14 complete UTC cost days</span></div><div><b>Action boundary</b><span>No AWS writes during scheduled runs</span></div></div>
-  <p className="monitor-caveat">Cost Explorer data may lag. This first version does not scan every region, maintain a separate baseline, or send external alerts. Each run creates a model session and makes AWS read calls, which may incur provider charges.</p>
+  <p className="monitor-caveat">The local baseline is stored by Nimbus on this machine and is not shared; it does not change AWS resources. Cost Explorer data may lag. This schedule does not scan every region or send external alerts. Each run creates a model session, makes AWS reads, and updates local history, which may incur provider charges.</p>
   {monitor.message&&<p className="monitor-message">{monitor.message}</p>}
   {error&&<p className="monitor-error" role="alert">{error}</p>}
   <div className="monitor-actions">
@@ -93,7 +94,7 @@ export function TrueForgeMonitor(){
   </div>
   {confirm&&<div className="monitor-confirm" role="alertdialog" aria-labelledby="monitor-confirm-title" aria-describedby="monitor-confirm-description">
    <h3 id="monitor-confirm-title">Enable daily AWS reviews?</h3>
-   <p id="monitor-confirm-description">This creates an active TrueForge schedule at 09:00 Asia/Kolkata. It will make daily AWS read calls and model requests, may incur usage charges, and will keep creating session reports until paused.</p>
+   <p id="monitor-confirm-description">This creates an active TrueForge schedule at 09:00 Asia/Kolkata. It will make daily AWS read calls, update Nimbus local baseline history, and create TrueForge sessions. Provider or AWS charges may apply; pause it to stop future runs.</p>
    <div><button className="agent-run-button" onClick={()=>void setSchedule('enable')} disabled={busy}>{busy?'Enabling…':'Confirm and enable'}</button><button className="agent-deny-button" onClick={()=>setConfirm(false)} disabled={busy}>Cancel</button></div>
   </div>}
  </section>

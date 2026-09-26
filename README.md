@@ -1,65 +1,78 @@
 # Nimbus — AWS cost review on TrueForge
 
-Nimbus is an AWS cost-review agent designed to gather live inventory, hourly EC2 CPU/network evidence, and service-level cost evidence, validate a bounded report in TrueForge's sandbox, and prepare a human review. Its local OpenAI model, agent, connector, tools, and approval selector are configured, but no TrueForge sandbox provider is configured yet, so a live sandbox run is not verified. If explicitly asked, it can add one fixed review tag to an unattached EBS volume after TrueForge presents the exact tool call and receives human approval. It cannot delete or stop resources.
+Nimbus is a cautious AWS evidence-review agent built to run inside TrueForge. It calls a real AWS MCP server, validates the bounded response in a configured TrueForge Daytona sandbox, and returns a dated report with explicit scope and uncertainty. It does not infer savings from billing totals or automatically clean up resources.
 
-## Project provenance and event rules
+## Current verified status — 2026-09-26
 
-This repository contains a pre-event Nimbus prototype copied from the supplied handoff, plus TrueForge/AWS integration work made on September 26, 2026. The official Agents That Act rules say pre-built projects are not eligible and code must be built on the day. This repo does not claim eligibility or conceal the prototype's origin; ask the organizers whether this degree of reuse is permitted before submitting. AI assistants are allowed, but the team must disclose them and explain the architecture.
+- TrueForge v0.2.1 is configured locally with OpenAI GPT-6 Luna (`reasoning_effort=none`), the `nimbus-aws-review` connector, the saved `nimbus-cost-agent`, and Daytona.
+- Two successful live TrueForge runs are recorded. Round 1 used three separate AWS evidence reads and produced 11 trace calls. Round 2 used one combined evidence call and produced 3 trace calls. That is one run per version, so the difference is directional, not a stable speed or quality claim.
+- A third live rehearsal completed in TrueForge at 11:33:54 UTC on 2026-09-26 (session `01m3eqvw6ant11xnf3081k926f`): one combined AWS evidence call, sandbox provisioned, three sandbox `exec` responses, no AWS writes, and a final report. The full trace also contained discovery/OpenUI/system calls; this one run is not a stable benchmark.
+- Nimbus and the separate AWS Core connection resolve to different AWS accounts. The user chose to keep Nimbus on its current local AWS profile. Nimbus results apply only to that credential-selected account; they do not represent the AWS Core account.
+- The active TrueForge schedule is configured for 09:00 Asia/Kolkata. Read-only inspection found the next run at 2026-09-27 09:00 IST and no completed scheduled session yet. It needs local TrueForge and the Nimbus MCP server available at run time, and can incur model and Cost Explorer charges.
+- The combined evidence tool records a private local baseline, capped at 90 snapshots per account/region and 1,000 globally. The first scheduled cross-run comparison is still unverified.
+- The currently running TrueForge endpoint still exposes five tools. Its only configured AWS write is a reversible review tag on one exact eligible EBS volume, gated by TrueForge approval. New local source adds a second, destructive action scoped to one operator-configured, tagged disposable volume, but the running MCP server and saved agent have not loaded that change; it is disabled by default and has not been demonstrated. There is no demonstrated approval-before-irreversible-cleanup flow.
+- The TrueForge Workflow Canvas source now supports in-panel approval and question prompts that resume the same session. Its UI package builds and typechecks; browser interaction is left for the operator to verify.
+- Nimbus test suite: 54 passing. Typecheck and production build pass. Round 4 repeats local synthetic microbenchmarks in five fresh processes; none of these measurements include AWS, the model, or TrueForge end-to-end latency.
 
-## What is implemented
+## What Nimbus does
 
-- The React app's original scanner uses synthetic or locally pasted JSON and labels those results as estimates, not live account findings.
-- A separate local MCP server reads AWS STS, EC2, ELB, CloudWatch, and Cost Explorer data. Inventory pagination is capped at 20 pages per service and reports truncation. CloudWatch returns hourly CPU and network evidence for at most 100 EC2 instances over 14 complete UTC days; missing/incomplete metrics are surfaced. Cost Explorer is also paginated with an explicit cap, but provides account/service totals, not resource-level cost attribution.
-- TrueForge's saved `nimbus-cost-agent` uses `openai/gpt-6-luna`, enables three read tools and the bounded `mark_volume_for_review` tool, and requires approval for that exact write. An opt-in TrueForge schedule can run a read-only review daily at 09:00 Asia/Kolkata; it is not active by default. The tag tool checks the current AWS account, region, volume ID, and unattached/available state, then adds only `nimbus:review-state=candidate-for-human-review`. A pre-existing different value is not overwritten. The agent has no delete, stop, or snapshot tool.
-- The Nimbus Agent panel is wired to start a session with the saved TrueForge agent through the TypeScript SDK, render streamed harness events, and let a person allow or reject a pending approval. Its evidence checklist only marks MCP and sandbox work observed when matching session events arrive. No completed model session or sandbox event has been verified yet. The Live Evidence panel calls the read-only MCP tools for direct review.
+The preferred `collect_cost_review_evidence` MCP tool returns identity, paginated EC2/ELB inventory, hourly CPU/network coverage for at most 100 EC2 instances over 14 complete UTC days, daily Cost Explorer service totals, deterministic summaries, and a local same-account/region baseline comparison. Cost Explorer service totals are not resource-level costs and can be revised or delayed. Missing metrics remain unknown. The local fixture scanner is a separate synthetic or pasted-data preview, not a live account scan.
 
-The OpenAI provider and `gpt-6-luna` model are configured in the current local TrueForge instance. The saved agent uses `reasoning_effort=none`, which OpenAI documents as required for GPT-6 Luna function calls through Chat Completions. This proves the saved configuration, not a successful model/API turn. The sandbox provider is still missing, so actual isolated code execution has not yet been demonstrated. Add provider credentials only in TrueForge's local UI; never put them in this repository or the Nimbus app.
+The other tools provide read-only inventory, monthly service costs, and recent daily service costs. In the live five-tool setup, `mark_volume_for_review` is the only AWS write and requires explicit TrueForge approval. The source tree also contains `delete_hackathon_demo_volume`, but the current live MCP process and saved agent have not been updated to expose it. Scheduled tasks are configured never to call either write.
 
-## Local setup
+## Run locally
 
-Requirements: Node.js 22.14 or newer. Keep both local services on loopback. TrueForge standalone mode has no login by default. Its outbound URL guard blocks loopback MCP targets unless you explicitly allow the Nimbus MCP host; the command below keeps the guard enabled and allowlists only `127.0.0.1`.
-
-Terminal 1, start Nimbus's local MCP service:
+Use Node.js 22.14 or newer. Keep the local TrueForge and MCP services on loopback; standalone TrueForge has no login by default.
 
 ```sh
+cp .env.example .env
+# Optionally set AWS_PROFILE in .env, then load the values into this shell.
+set -a
+. ./.env
+set +a
 cd nimbus
 npm ci
 npm run mcp
 ```
 
-Terminal 2, start TrueForge with its outbound guard enabled and loopback MCP exception:
+In a second terminal:
 
 ```sh
 cd nimbus
 NETWORK_POLICY_ENABLED=true OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1"]' npx @truefoundry/trueforge@0.2.1
 ```
 
-Open <http://localhost:8790>. Under **Settings → Models**, configure a provider and select a model. Under **Settings → Connectors**, connect the local Nimbus server at `http://127.0.0.1:8792/mcp` as `nimbus-aws-review`. When building the agent, enable the three read tools; enable `mark_volume_for_review` only with **Require approval** on. The checked-in manifest and installer preserve and read back those settings:
+Open `http://localhost:8790`. Configure the model under **Settings → Models** and add `http://127.0.0.1:8792/mcp` under **Settings → Connectors** as `nimbus-aws-review`. The saved agent uses `openai/gpt-6-luna` and the combined evidence call. AWS credentials stay in the local AWS credential chain; model keys stay in TrueForge settings.
+
+Verify the setup and start the local interface as needed:
 
 ```sh
-npm run agent:install -- openai/gpt-6-luna
 npm run verify:setup
-```
-
-After verifying the agent and connector, `npm run monitor:enable` opts into a daily scheduled TrueForge run at 09:00 Asia/Kolkata. Each run reads inventory from the configured AWS region plus the last 14 complete UTC days of account-level service costs and creates a TrueForge session/report. It does not send external alerts or mutate AWS; pause it with `npm run monitor:pause`. Runs make model calls and AWS reads and may incur provider charges.
-
-Use the actual configured provider/model name in the installer command. AWS credentials stay in the local AWS credential chain. The read tools need STS identity, EC2 describe, ELB describe, and Cost Explorer read permissions. The optional review-tag tool additionally needs `ec2:CreateTags`. Use a dedicated demo account with no production resources.
-
-Terminal 3, run the Nimbus web app:
-
-```sh
-cd nimbus
 npm run dev
 ```
 
-Open the Vite URL printed by the command. In **Agent**, start `nimbus-cost-agent`; the direct SDK event stream shows TrueForge's MCP and sandbox activity. A tag proposal pauses in Nimbus for an explicit TrueForge approval decision. **Account evidence** is a separate direct read-only display. Neither path treats the synthetic scanner fixture as current AWS evidence.
+The schedule is currently active. Pause it with `npm run monitor:pause`; the schedule setup command is `npm run monitor:enable`. Scheduled AWS reads use the current local credential profile, cover one configured region, and may incur charges.
 
-## Demo, limitations, and research
+## Research, benchmarks, and demo
 
-Use [`nimbus/docs/demo-script.md`](nimbus/docs/demo-script.md) for the five-minute walkthrough and [`nimbus/docs/safety.md`](nimbus/docs/safety.md) for tool boundaries. The live inventory now includes hourly CPU/network metrics for up to 100 EC2 instances; it still lacks owner, dependency, backup, and memory evidence. CloudWatch activity is a review signal, not proof of idleness. Resource-level Cost Explorer data is unavailable in the connected payer account because opt-in is off, so service totals are not per-resource costs. Unattached does not mean idle or safe to delete; the tag only requests human review and does not realize savings.
+- [`research/agents-that-act-trueforge-research.md`](research/agents-that-act-trueforge-research.md): event profile, rules, scoring rubric, and TrueForge product survey.
+- [`research/trueforge-docs-api-audit-2026-09-26.md`](research/trueforge-docs-api-audit-2026-09-26.md): full docs index review and versioned API/schema inventory.
+- [`research/aws-agent-toolkit-reuse-and-trueforge-fit-2026-09-26.md`](research/aws-agent-toolkit-reuse-and-trueforge-fit-2026-09-26.md): open-source toolkit reuse and compatibility boundaries.
+- [`nimbus/benchmarks/README.md`](nimbus/benchmarks/README.md): benchmark protocol and four visuals.
+- [`nimbus/docs/recording-run-sheet.md`](nimbus/docs/recording-run-sheet.md): time-coded plan for the required three-minute recording, matched to current live state.
+- [`nimbus/docs/demo-script.md`](nimbus/docs/demo-script.md): longer five-minute walkthrough and proof to capture.
+- [`nimbus/docs/safety.md`](nimbus/docs/safety.md): AWS, local history, approval, and sandbox boundaries.
 
-The researched event profile, scoring rubric, eligibility, TrueForge feature survey, API/SDK notes, and source links are in [`research/agents-that-act-trueforge-research.md`](research/agents-that-act-trueforge-research.md). The full docs index and version-matched API operation/schema inventory are captured in [`research/trueforge-docs-api-audit-2026-09-26.md`](research/trueforge-docs-api-audit-2026-09-26.md), with source snapshots in `research/snapshots/`. The original handoff audit is in [`research/nimbus-handoff-assessment.md`](research/nimbus-handoff-assessment.md).
+The handoff folder contained a substantial pre-event prototype. The hackathon rules say pre-built projects are not eligible; the later TrueForge integration does not establish eligibility. Ask organizers whether this reuse is allowed before submitting. Disclose AI assistance and explain the implementation. No claim is made that Nimbus is eligible, submitted, or a winner.
 
 ## AI-assistance disclosure
 
 OpenAI Codex and Zed's assistant were used to research, review, and modify this repository. Confirm the complete team disclosure before submitting.
+
+## Solution write-up (submission, 236 words)
+
+Cloud teams need a trustworthy way to spot cost changes and investigate possible waste without letting an agent delete the wrong resource. Nimbus runs inside TrueForge and reaches the operator's credential-selected AWS account and configured region through a local MCP server. It reads caller identity, paginated EC2/ELB inventory, hourly EC2 CPU and network metrics, and daily Cost Explorer service totals. It combines these into one structured evidence response, compares complete dates against a private local baseline, and explains gaps rather than guessing.
+
+TrueForge manages the model session, tool routing, sandbox, and human approval checkpoint. Nimbus validates the evidence in the configured Daytona sandbox and returns a dated report. Its scheduled workflow is read-only. The live agent's optional write adds one reversible review tag after approval. A separate destructive demo tool exists in source but is disabled by default, restricted to one operator-configured encrypted 1 GiB gp3 volume with exact disposable tags, and is not active in the current TrueForge session. Approval before irreversible cleanup has not been demonstrated.
+
+The connected AWS reads are real. The bundled browser scanner and its example inventories are synthetic or locally pasted input; local microbenchmarks use synthetic data. Cost Explorer is delayed and service-level, the agent covers one configured region, and the local AWS profile differs from AWS Core. No resource-level costs, realized savings, or general cleanup safety are claimed. The project started from a pre-event handoff; hackathon eligibility remains unresolved.

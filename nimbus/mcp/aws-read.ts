@@ -1,9 +1,10 @@
-import {EC2Client,DescribeInstancesCommand,DescribeVolumesCommand,DescribeAddressesCommand,DescribeSnapshotsCommand,CreateTagsCommand} from '@aws-sdk/client-ec2';
+import {EC2Client,DescribeInstancesCommand,DescribeVolumesCommand,DescribeAddressesCommand,DescribeSnapshotsCommand,CreateTagsCommand,DeleteVolumeCommand} from '@aws-sdk/client-ec2';
 import {ElasticLoadBalancingV2Client,DescribeLoadBalancersCommand} from '@aws-sdk/client-elastic-load-balancing-v2';
 import {STSClient,GetCallerIdentityCommand} from '@aws-sdk/client-sts';
 import {CostExplorerClient,GetCostAndUsageCommand} from '@aws-sdk/client-cost-explorer';
 import {CloudWatchClient,GetMetricDataCommand} from '@aws-sdk/client-cloudwatch';
-import {analyzeDailyCosts} from './cost-analysis.ts';
+import {analyzeDailyCosts,compareCostBaselines} from './cost-analysis.ts';
+import {recordCostBaseline} from './cost-baseline-store.ts';
 
 const MAX_PAGES=20;
 const UTILIZATION_DAYS=14;
@@ -145,10 +146,18 @@ export async function getDailyBilling(days=14){
 
 export async function collectCostReviewEvidence(region=process.env.AWS_REGION||'us-east-1',days=14){
  if(!Number.isInteger(days)||days<7||days>31)throw Error('days must be a whole number between 7 and 31');
- const capturedAt=new Date().toISOString();
  const [inventory,dailyCosts]=await Promise.all([getInventory(region),getDailyBilling(days)]);
+ const capturedAt=new Date().toISOString();
  const analysis=analyzeDailyCosts(dailyCosts.services,dailyCosts.endDateExclusive);
- return {source:'Nimbus bounded read-only AWS cost review',capturedAt,identity:{accountId:inventory.accountId,region:inventory.region},inventory,dailyCosts,analysis};
+ const currentBaseline={accountId:inventory.accountId,region:inventory.region,capturedAt,startDate:dailyCosts.startDate,endDateExclusive:dailyCosts.endDateExclusive,services:dailyCosts.services};
+ let baseline:ReturnType<typeof compareCostBaselines>|{status:'storage_unavailable';previousCapturedAt:null;daysCompared:0;changes:never[];note:string};
+ try{
+  const recorded=await recordCostBaseline(currentBaseline);
+  baseline=compareCostBaselines(recorded.previous,currentBaseline);
+ }catch(error){
+  baseline={status:'storage_unavailable',previousCapturedAt:null,daysCompared:0,changes:[],note:`AWS evidence was collected, but the local cost baseline could not be saved: ${error instanceof Error?error.message:'storage error'}.`};
+ }
+ return {source:'Nimbus bounded read-only AWS cost review',capturedAt,identity:{accountId:inventory.accountId,region:inventory.region},inventory,dailyCosts,analysis,baseline};
 }
 
 export async function markVolumeForReview(input:{region:string;volumeId:string;expectedAccountId:string}){
@@ -169,4 +178,34 @@ export async function markVolumeForReview(input:{region:string;volumeId:string;e
  if(existingTag?.Value==='candidate-for-human-review')return {source:'AWS EC2 DescribeVolumes',accountId:identity.Account,region,volumeId,tag:{key:'nimbus:review-state',value:'candidate-for-human-review'},effect:'Review marker was already present; no change was made.'};
  await ec2.send(new CreateTagsCommand({Resources:[volumeId],Tags:[{Key:'nimbus:review-state',Value:'candidate-for-human-review'}]}));
  return {source:'AWS EC2 CreateTags',accountId:identity.Account,region,volumeId,tag:{key:'nimbus:review-state',value:'candidate-for-human-review'},effect:'Added a reversible review marker only. No resource was stopped or deleted.'};
+}
+
+export type DisposableDemoVolume={VolumeId?:string;State?:string;Attachments?:unknown[];Tags?:Array<{Key?:string;Value?:string}>;VolumeType?:string;Size?:number;Encrypted?:boolean};
+export function assertDisposableDemoVolume(volume:DisposableDemoVolume,expectedVolumeId:string){
+ if(volume.VolumeId!==expectedVolumeId)throw Error('Described volume does not match the configured disposable demo target.');
+ const tags=new Map((volume.Tags||[]).map(tag=>[tag.Key||'',tag.Value||'']));
+ if(tags.get('nimbus:hackathon-demo')!=='agents-that-act-disposable'||tags.get('nimbus:dispose-after-approval')!=='true')throw Error('Volume is missing the exact Nimbus hackathon disposable-target tags.');
+ if(volume.State!=='available'||(volume.Attachments?.length||0)>0)throw Error('Refusing deletion unless the exact disposable demo volume is currently available and unattached.');
+ if(volume.VolumeType!=='gp3'||volume.Size!==1||volume.Encrypted!==true)throw Error('Refusing deletion unless the target is an encrypted 1 GiB gp3 disposable demo volume.');
+}
+
+export async function deleteHackathonDemoVolume(input:{region:string;volumeId:string;expectedAccountId:string}){
+ if(process.env.NIMBUS_ENABLE_DISPOSABLE_VOLUME_DELETE!=='true')throw Error('Disposable-volume deletion is disabled. Set NIMBUS_ENABLE_DISPOSABLE_VOLUME_DELETE=true only for an isolated hackathon demo target.');
+ const allowedRegion=process.env.NIMBUS_DISPOSABLE_VOLUME_REGION;
+ const allowedVolumeId=process.env.NIMBUS_DISPOSABLE_VOLUME_ID;
+ const allowedAccountId=process.env.NIMBUS_DISPOSABLE_VOLUME_ACCOUNT_ID;
+ if(!allowedRegion||!allowedVolumeId||!allowedAccountId)throw Error('Disposable-volume deletion requires a single exact account, region, and volume ID configured by the operator.');
+ if(!/^[a-z]{2}-[a-z-]+-\d$/.test(input.region)||input.region!==allowedRegion)throw Error('Region does not match the configured disposable demo target.');
+ if(!/^vol-[0-9a-f]+$/.test(input.volumeId)||input.volumeId!==allowedVolumeId)throw Error('Volume ID does not match the single configured disposable demo target.');
+ if(!/^\d{12}$/.test(input.expectedAccountId)||input.expectedAccountId!==allowedAccountId)throw Error('Expected account ID does not match the configured disposable demo target.');
+ const sts=new STSClient({region:allowedRegion});
+ const identity=await sts.send(new GetCallerIdentityCommand({}));
+ if(identity.Account!==allowedAccountId)throw Error('AWS caller identity does not match the configured disposable demo account.');
+ const ec2=new EC2Client({region:allowedRegion});
+ const result=await ec2.send(new DescribeVolumesCommand({VolumeIds:[allowedVolumeId]}));
+ const volume=result.Volumes?.find(item=>item.VolumeId===allowedVolumeId);
+ if(!volume)throw Error('Configured disposable demo volume was not found.');
+ assertDisposableDemoVolume(volume,allowedVolumeId);
+ await ec2.send(new DeleteVolumeCommand({VolumeId:allowedVolumeId}));
+ return {source:'AWS EC2 DeleteVolume',accountId:identity.Account,region:allowedRegion,volumeId:allowedVolumeId,effect:'Requested irreversible deletion of the single operator-configured, tagged, encrypted 1 GiB gp3 hackathon demo volume after fresh identity and attachment checks. No other volume can be selected by this tool.'};
 }

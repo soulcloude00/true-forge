@@ -4,7 +4,7 @@ import {TrueForge,TrueForgeApi,isEventDelta,mergeEventDelta} from '@truefoundry/
 type Approval={threadId:string;toolCallId:string;toolName:string;argumentsText:string};
 type EventIndex=Map<string,TrueForgeApi.TurnStreamingEvent>;
 type ToolCallEvidence={type:string;name:string};
-type HarnessEvidence={mcpToolResponse:boolean;sandboxCreated:boolean;sandboxToolResponse:boolean;approvalPaused:boolean};
+type HarnessEvidence={mcpToolResponse:boolean;sandboxCreated:boolean;sandboxToolResponse:boolean;approvalPaused:boolean;baselineRecorded:boolean;baselineStatus:string|null;baselineDaysCompared:number|null};
 
 function eventText(content:TrueForgeApi.ModelMessageEvent['content']):string{
  if(typeof content==='string')return content;
@@ -30,14 +30,14 @@ function label(event:TrueForgeApi.TurnStreamingEvent):string{
 }
 
 export function TrueForgeRun(){
- const [prompt,setPrompt]=useState('Inspect my configured AWS account in the configured region using the Nimbus MCP tools. Read current inventory, hourly CPU and network evidence for the last 14 complete UTC days, monthly service costs, and recent daily service costs. Use the TrueForge sandbox to run a deterministic script that summarizes the returned evidence and creates a Markdown report. State inventory and metric coverage, missing data, Cost Explorer freshness, and that service-level totals are not per-resource costs. Describe low observed activity only as a review signal; never call a resource idle, safe to stop, or safe to delete based on these metrics alone. Use read-only tools only. Do not call or propose mark_volume_for_review unless I separately ask to tag a specific volume. Never delete, stop, snapshot, or change any AWS resource.');
+ const [prompt,setPrompt]=useState('Run one Nimbus cost review for my configured AWS account and region. Call collect_cost_review_evidence exactly once first; its tool schema is enabled, so do not call list_tools or get_tool_info. Explain the local account/region baseline status, previous capture, overlapping complete UTC dates, and service-level changes. Use TrueForge sandbox execution to validate the structured result and create a dated Markdown report. In this same TrueForge session, show a compact native Generative UI/OpenUI panel for scope, baseline, up to five service changes, evidence coverage, and follow-up questions; do not create a separate page. Explain Cost Explorer freshness and that service-level totals are not per-resource costs. Low activity is only a review signal, never proof of idleness or deletion safety. The baseline updates local Nimbus history only. Never call mark_volume_for_review unless I separately ask to tag one specific volume. Never call delete_hackathon_demo_volume unless I explicitly ask to delete the single operator-configured, disposable hackathon demo volume; show its exact account, region, volume ID, and irreversible effect, require TrueForge approval, and stop if denied. Never use it for another resource, call it from a scheduled run, or stop or snapshot AWS resources.');
  const [events,setEvents]=useState<string[]>([]);
  const [answer,setAnswer]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const [sessionId,setSessionId]=useState('');
  const [pending,setPending]=useState<Approval[]>([]);
- const [evidence,setEvidence]=useState<HarnessEvidence>({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false});
+ const [evidence,setEvidence]=useState<HarnessEvidence>({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false,baselineRecorded:false,baselineStatus:null,baselineDaysCompared:null});
 
  const consume=async(stream:Awaited<ReturnType<TrueForge['sessions']['createTurnStream']>>,index:EventIndex)=>{
   const toolCalls=new Map<string,ToolCallEvidence>();
@@ -64,6 +64,9 @@ export function TrueForgeRun(){
    if(event.type==='tool.response'){
     const call=toolCalls.get(event.toolCallId);
     if(call?.type==='mcp')setEvidence(value=>({...value,mcpToolResponse:true}));
+    if(call?.name==='collect_cost_review_evidence'){
+     try{const output=JSON.parse(event.content) as {baseline?:{status?:string;daysCompared?:number};structuredContent?:{baseline?:{status?:string;daysCompared?:number}}};const baseline=output.structuredContent?.baseline||output.baseline;if(baseline?.status)setEvidence(value=>({...value,baselineRecorded:baseline.status!=='storage_unavailable',baselineStatus:baseline.status||null,baselineDaysCompared:typeof baseline.daysCompared==='number'?baseline.daysCompared:null}))}catch{}
+    }
     if(call?.type==='truefoundry-system'&&/(sandbox|code)/i.test(call.name))setEvidence(value=>({...value,sandboxToolResponse:true}));
    }
    if(event.type==='turn.done'&&event.state.status==='done'){
@@ -75,7 +78,7 @@ export function TrueForgeRun(){
  };
 
  const run=async()=>{
-  setBusy(true);setEvents([]);setAnswer('');setPending([]);setError('');setSessionId('');setEvidence({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false});
+  setBusy(true);setEvents([]);setAnswer('');setPending([]);setError('');setSessionId('');setEvidence({mcpToolResponse:false,sandboxCreated:false,sandboxToolResponse:false,approvalPaused:false,baselineRecorded:false,baselineStatus:null,baselineDaysCompared:null});
   try{
    const client=new TrueForge({baseUrl:`${window.location.origin}/api/trueforge`,timeoutInSeconds:600});
    const {data:session}=await client.sessions.create({agent:{name:'nimbus-cost-agent'}});
@@ -102,7 +105,7 @@ export function TrueForgeRun(){
  };
 
  return <section className="trueforge-run" aria-labelledby="trueforge-run-title">
-  <div className="live-head"><div><span className="small-label">TRUEFORGE SDK · LIVE SESSION · HUMAN CHECKPOINT</span><h2 id="trueforge-run-title">Run the Nimbus agent</h2><p>This starts the saved <code>nimbus-cost-agent</code> in TrueForge. Tool calls and sandbox events come from its actual event stream. The one AWS write is an explicit, reversible review tag and waits here for your decision.</p></div><a href="http://localhost:8790" target="_blank" rel="noopener noreferrer">Open TrueForge ↗</a></div>
+  <div className="live-head"><div><span className="small-label">TRUEFORGE SDK · LIVE SESSION · NATIVE REVIEW PANEL</span><h2 id="trueforge-run-title">Run the Nimbus agent</h2><p>This starts the saved <code>nimbus-cost-agent</code> in TrueForge. Tool calls, baseline result, sandbox events, and native OpenUI output come from its actual event stream. The only AWS resource write is an exact reversible review tag that waits for TrueForge approval; a separate local history snapshot updates automatically.</p></div><a href="http://localhost:8790" target="_blank" rel="noopener noreferrer">Open TrueForge ↗</a></div>
   <label className="agent-prompt-label">Investigation request<textarea value={prompt} onChange={event=>setPrompt(event.target.value)} rows={5} disabled={busy}/></label>
   <button className="agent-run-button" onClick={()=>void run()} disabled={busy||!prompt.trim()}>{busy?'Running in TrueForge…':'Start TrueForge investigation'}</button>
   {sessionId&&<p className="agent-session-id"><b>TrueForge session</b> <code>{sessionId}</code></p>}
@@ -113,6 +116,7 @@ export function TrueForgeRun(){
   </div>}
   {events.length>0&&<div className="harness-evidence" aria-live="polite"><h3>Observed harness evidence</h3><ul>
    <li data-complete={evidence.mcpToolResponse}>{evidence.mcpToolResponse?'Observed':'Not observed'} · Nimbus MCP tool response</li>
+   <li data-complete={evidence.baselineRecorded}>{evidence.baselineStatus?`Observed · local baseline ${evidence.baselineStatus}${evidence.baselineDaysCompared===null?'':` · ${evidence.baselineDaysCompared} overlapping days`}`:'Not observed · local baseline result'}</li>
    <li data-complete={evidence.sandboxCreated}>{evidence.sandboxCreated?'Observed':'Not observed'} · TrueForge sandbox provisioned</li>
    <li data-complete={evidence.sandboxToolResponse}>{evidence.sandboxToolResponse?'Observed':'Not observed'} · sandbox or Code Mode tool response</li>
    <li data-complete={evidence.approvalPaused}>{evidence.approvalPaused?'Observed':'Not requested in this run'} · human approval pause for a gated action</li>

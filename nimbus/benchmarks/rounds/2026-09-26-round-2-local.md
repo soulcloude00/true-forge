@@ -8,5 +8,10 @@ The benchmark calls Nimbus's production `analyzeDailyCosts` function directly us
 | 2 | 0.0059 | 0.0127 | 0.1999 |
 | 3 | 0.0058 | 0.0064 | 0.0661 |
 | 4 (after non-positive-baseline guard) | 0.0061 | 0.0424 | 1.4796 |
+| 5 | 0.0125 | 0.0325 | 1.6212 |
+| 6 (verification rerun) | 0.0058 | 0.0103 | 0.0989 |
+| 7 (verification rerun) | 0.0059 | 0.0110 | 0.0961 |
 
-All runs verified 14 daily totals and 3 service-change summaries. Median of run medians: **0.0060 ms**. The fourth run includes the final guard that withholds percentage changes when the first total is non-positive. The spread, especially in runs 1 and 4 p95/max, shows local runtime noise. This establishes an initial local baseline only; there is no pre-change measurement of this implementation to support a speedup claim. The live Round 2 tool-call result is recorded separately; repeated live sessions are still needed for stable end-to-end timing.
+All runs verified 14 daily totals and 3 service-change summaries. Median of run medians: **0.0060 ms**. The fourth run includes the final guard that withholds percentage changes when the first total is non-positive. The spread, especially in runs 1, 4, and 5 p95/max, shows local runtime noise. This establishes an initial local baseline only; there is no pre-change measurement of this implementation to support a speedup claim. Runs 6 and 7 were iteration verification reruns, not separate code changes. The live Round 2 tool-call result is recorded separately; repeated live sessions are still needed for stable end-to-end timing.
+
+Round 3 extends the microbenchmark to include baseline comparison and records the newest run separately; see [`2026-09-26-round-3-local.md`](2026-09-26-round-3-local.md). Keep this Round 2 data unchanged as the historical aggregation-only baseline.

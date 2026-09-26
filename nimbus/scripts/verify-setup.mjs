@@ -5,7 +5,7 @@ const mcpUrl=process.env.NIMBUS_MCP_URL||'http://127.0.0.1:8792/mcp';
 const client=new TrueForge({baseUrl,timeoutInSeconds:10});
 const spec=JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../trueforge-agent-spec.json',import.meta.url)));
 const agentName=spec.name;
-const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
+const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review','delete_hackathon_demo_volume'];
 const readiness={server:false,mcp:false,model:false,connector:false,agent:false,sandbox:false};
 const failures=[];
 
@@ -46,7 +46,7 @@ if(readiness.server){
   const agent=agents.data.find(item=>item.name===agentName);
   if(agent){
    const server=agent.manifest.mcpServers?.find(item=>item.name==='nimbus-aws-review');
-   const approval=server?.requireApprovalForTools?.includes('mark_volume_for_review')===true;
+   const approval=['mark_volume_for_review','delete_hackathon_demo_volume'].every(name=>server?.requireApprovalForTools?.includes(name)===true);
    const enabled=requiredTools.every(name=>server?.enableTools?.includes(name));
    const modelName=agent.manifest.model?.name;
    const modelAvailable=models.data.some(model=>model.name===modelName);
@@ -56,7 +56,7 @@ if(readiness.server){
    console.log(`Saved agent ${agentName}: ${readiness.agent?'ready':'needs repair'}; model ${modelName||'missing'} ${modelAvailable?'available':'unavailable'}${modelName==='openai/gpt-6-luna'?`; reasoning effort ${reasoningEffort||'default'}`:''}`);
    if(!modelAvailable)failures.push(`Add/configure the saved agent model ${modelName||'(missing)'} in TrueForge Settings.`);
    if(!effortReady)failures.push('Set gpt-6-luna reasoning effort to none so Chat Completions tool calling works.');
-   if(!enabled||!approval)failures.push('Repair the saved agent tools and mark_volume_for_review approval gate.');
+   if(!enabled||!approval)failures.push('Repair the saved agent tools and require approval for both AWS write tools.');
   }else{
    console.log(`Saved agent ${agentName}: missing`);
    failures.push('Install nimbus-cost-agent after selecting a configured model.');

@@ -3,8 +3,8 @@ import {TrueForge} from '@truefoundry/trueforge-sdk';
 
 const client=new TrueForge({baseUrl:process.env.TRUEFORGE_BASE_URL||'http://localhost:8790',timeoutInSeconds:15});
 const spec=JSON.parse(await readFile(new URL('../trueforge-agent-spec.json',import.meta.url)));
-const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review'];
-const requiredApproval='mark_volume_for_review';
+const requiredTools=['collect_cost_review_evidence','inspect_aws_inventory','read_monthly_service_cost','read_recent_daily_service_cost','mark_volume_for_review','delete_hackathon_demo_volume'];
+const requiredApprovals=['mark_volume_for_review','delete_hackathon_demo_volume'];
 
 async function ensureSkills(){
  const existing=(await client.settings.skills.list()).data||[];
@@ -32,8 +32,8 @@ try{
  const server=manifest.mcpServers?.find(item=>item.name==='nimbus-aws-review');
  const enabled=server?.enableTools||[];
  const approval=server?.requireApprovalForTools||[];
- if(requiredTools.some(name=>!enabled.includes(name))||!approval.includes(requiredApproval)||manifest.model?.name!=='openai/gpt-6-luna'||manifest.model?.params?.reasoningEffort!=='none'||(spec.manifest.skills||[]).some(skill=>!manifest.skills?.some(saved=>saved.name===skill.name))){
-  throw new Error('Read-back verification failed for the saved model, tools, or approval selector.');
+ if(requiredTools.some(name=>!enabled.includes(name))||requiredApprovals.some(name=>!approval.includes(name))||manifest.model?.name!=='openai/gpt-6-luna'||manifest.model?.params?.reasoningEffort!=='none'||(spec.manifest.skills||[]).some(skill=>!manifest.skills?.some(saved=>saved.name===skill.name))){
+  throw new Error('Read-back verification failed for the saved model, tools, or approval selectors.');
  }
  console.log(`Updated and verified saved agent ${spec.name} (${agent.id}).`);
  console.log(`Model: ${manifest.model.name}; reasoning effort: ${manifest.model.params.reasoningEffort}`);
