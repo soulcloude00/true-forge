@@ -28,7 +28,7 @@ function label(event:TrueForgeApi.TurnStreamingEvent):string{
 }
 
 export function TrueForgeRun(){
- const [prompt,setPrompt]=useState('Inspect my configured AWS account in the configured region using the Nimbus MCP tools. Use the TrueForge sandbox to run a deterministic script that summarizes the returned inventory and creates a Markdown evidence report. Clearly state pagination limits and missing utilization data. If you find one currently available, unattached EBS volume, prepare the exact account, region, and volume ID for the fixed candidate-for-human-review tag. Do not apply the tag unless I explicitly approve the TrueForge tool-approval request shown here. Never delete, stop, snapshot, or change any other AWS resource.');
+ const [prompt,setPrompt]=useState('Inspect my configured AWS account in the configured region using the Nimbus MCP tools. Read current inventory, monthly service costs, and recent daily service costs. Use the TrueForge sandbox to run a deterministic script that summarizes the returned evidence and creates a Markdown report. Clearly state pagination limits, Cost Explorer freshness, service-level attribution limits, and missing utilization data. Do not call or propose mark_volume_for_review unless I separately ask to tag a specific volume. Never delete, stop, snapshot, or change any AWS resource.');
  const [events,setEvents]=useState<string[]>([]);
  const [answer,setAnswer]=useState('');
  const [busy,setBusy]=useState(false);
